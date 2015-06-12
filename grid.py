@@ -1,0 +1,766 @@
+import math
+import random
+import sys
+sys.setrecursionlimit(1500)
+
+from app.generators.hexgen.constants import *
+from app.generators.hexgen.hex import Sea, Biome
+from app.generators.hexgen.territory import Territory
+
+from app.models.universe.world import WorldType
+from app.models.game.province import HexResourceType, HexResourceRating
+
+class GridBoundsException(Exception):
+    pass
+
+
+class Grid:
+    def __init__(self, grid, sealevel, avg_surface_temp, has_water, colony, average_height):
+        self.grid = grid
+        self.colony = colony
+        self.sealevel = sealevel
+        self.size = len(grid)
+        self.avg_surface_temp = avg_surface_temp
+        self.has_water = has_water
+        self.average_height = average_height
+
+        self.avg_altitude = 0
+
+        self.hexes = []
+
+    def find_hex(self, x, y):
+        """ Finds a hex and a x and y coordinate """
+        try:
+            return self.grid[x][y]
+        except IndexError:
+            raise GridBoundsException("Invalid coordinates {}, {}".format(x, y))
+
+    def calculate(self):
+        # run through the grid, calculate the edges
+        alt = 0
+        hexes = []
+        for y, row in enumerate(self.grid):
+            for x, col in enumerate(row):
+                self.grid[x][y].calculate()
+                alt += self.grid[x][y].altitude
+                hexes.append(self.grid[x][y])
+        self.avg_altitude = round(alt / math.pow(self.size, 2) )
+
+        self.hexes = sorted(hexes, key=lambda x: x.temperature)
+
+        number = round(len(self.hexes) * 0.10)
+        self.coldest_hexes = self.hexes[:number]
+
+
+class GridGen:
+    """ generates a heightmap as an array of integers between 1 and 255
+    using the diamond-square algorithm"""
+
+    def __init__(self, colony, size, avg_surface_temp=20, seed=None, debug=False):
+        """ initialize """
+        self.debug = debug
+        self.world = colony.world
+        self.has_water = colony.world.hydrosphere >= 5
+        print("Planet with surface water: ", self.has_water)
+        self.sea_percent = colony.world.sea_percent
+
+        if seed is not None:
+            random.seed(seed)
+
+
+        self.size = size
+        self.grid = [[0 for x in range(0, self.size)] for x in range(0, self.size)]
+        self.grid[0][0] = random.randint(0, 255)
+        self.grid[self.size - 1][0] = random.randint(0, 255)
+        self.grid[0][self.size - 1] = random.randint(0, 255)
+        self.grid[self.size - 1][self.size - 1] = random.randint(0, 255)
+        self._subdivide(0, 0, self.size - 1, self.size - 1)
+
+
+        # compute average and record top height
+        avg = []
+        m = []
+        for g in self.grid:
+            m.append(max(g))
+            avg.append(sum(g) / float(len(g)))
+        self.top_height = max(m)
+        self.average_height = sum(avg) / float(len(avg))
+        # self.sealevel = int(self.heightmap.average_height * (sea_percent * 2 / 100.0))
+        self.sealevel = round(self.average_height * (self.sea_percent * 2 / 100))
+        if self.sea_percent == 100:
+            self.sealevel = 255
+        print("Sea level at {} or {}%".format(self.sealevel, self.sea_percent))
+
+        self.rivers = []
+        self.rivers_sources = []
+
+        self.hex_grid = Grid(self.grid, self.sealevel, avg_surface_temp, self.has_water, colony, self.average_height)
+
+        # loop over grid turning each element into a Grid class
+        print("Making grid") if self.debug else False
+        self.num_ocean_hexes = 0
+        for y, row in enumerate(self.grid):
+            for x, col in enumerate(row):
+                self.hex_grid.grid[x][y] = Hex(self.hex_grid, x, y, self.grid[x][y])
+                if self.hex_grid.grid[x][y].is_water:
+                    self.num_ocean_hexes += 1
+
+        self.hex_grid.calculate()
+        print("Computing hex distances") if self.debug else False
+        self._get_distances()
+
+        if self.has_water:
+            self._generate_rivers()
+
+        # give coastal land hexes moisture based on how close to the coast they are
+        print("Making coastal moisture") if self.debug else False
+        # TODO: This should be dependent on latitude (x coordinate)
+        if self.has_water:
+            for y, row in enumerate(self.hex_grid.grid):
+                for x, col in enumerate(row):
+                    hex = self.hex_grid.grid[x][y]
+                    if hex.is_land:
+                        if hex.distance <= 5:
+                            hex.moisture += 1
+                        if hex.distance <= 3:
+                            hex.moisture += random.randint(1, 3)
+                        if hex.distance <= 1:
+                            hex.moisture += random.randint(1, 6)
+
+        # generate aquifers
+        num_aquifers = random.randint(5, 25)
+
+        if self.has_water is False or self.sea_percent == 100:
+            num_aquifers = 0
+
+        print("Making {} aquifers".format(num_aquifers)) if self.debug else False
+        aquifers = []
+        while len(aquifers) < num_aquifers:
+            rx = random.randint(0, len(self.hex_grid.grid) - 1)
+            ry = random.randint(0, len(self.hex_grid.grid) - 1)
+            hex = self.hex_grid.grid[rx][ry]
+            if hex.is_land and hex.moisture < 5:
+                aquifers.append(hex)
+
+        for hex in aquifers:
+            # print("Aquifer at ", hex)
+            r1 = hex.bubble(distance=3)
+            for hex in r1:
+                if hex.is_land:
+                    hex.moisture += random.randint(0, 2)
+            r2 = hex.bubble(distance=2)
+            for hex in r2:
+                if hex.is_land:
+                    hex.moisture += 1
+            r3 = hex.surrounding
+            for hex in r3:
+                if hex.is_land:
+                    hex.moisture += 1
+
+        # decide terrain features
+        print("Making terrain features") if self.debug else False
+        # craters only form in barren planets with a normal or lower atmosphere
+        if self.world.type is WorldType.barren and self.world.pressure < 5:
+
+            # decide number of craters
+            num_craters = random.randint(0, 15)
+            print("Making {} craters".format(num_craters))
+            craters = []
+
+            while len(craters) < num_craters:
+                size = random.randint(1, 3)
+                craters.append(dict(hex=random.choice(self.hex_grid.hexes),
+                                    size=size,
+                                    depth= 10 * size))
+
+            for crater in craters:
+
+                center_hex = crater.get('hex')
+                size = crater.get('size')
+                depth = crater.get('depth')
+                hexes = []
+
+                if size >= 1:
+                    hexes = center_hex.surrounding
+                    for h in hexes:
+                        h.add_feature(HexFeature.crater)
+                        h.altitude = center_hex.altitude - 5
+                        h.altitude = max(h.altitude, 0)
+                if size >= 2:
+                    hexes = center_hex.bubble(distance=2)
+                    for h in hexes:
+                        h.add_feature(HexFeature.crater)
+                        h.altitude = center_hex.altitude - 10
+                        h.altitude = max(h.altitude, 0)
+
+                if size >= 3:
+                    hexes = center_hex.bubble(distance=3)
+                    for h in hexes:
+                        h.add_feature(HexFeature.crater)
+                        h.altitude = center_hex.altitude - 15
+                        h.altitude = max(h.altitude, 0)
+                for h in hexes[:round(len(hexes)/3)]:
+                    for i in h.surrounding:
+                        if i.has_feature(HexFeature.crater) is False:
+                            i.add_feature(HexFeature.crater)
+                            i.altitude = center_hex.altitude - 20
+                            i.altitude = max(i.altitude, 0)
+
+
+        # volcanoes
+        if self.world.type is WorldType.volcanic:
+
+            num_volcanoes = random.randint(0, 10)
+            print("Making {} volcanoes".format(num_volcanoes))
+            volcanoes = []
+            while len(volcanoes) < num_volcanoes:
+                center_hex = random.choice(self.hex_grid.hexes)
+                if center_hex.altitude > 50:
+                    size = random.randint(1, 5)
+                    height = random.randint(30, 70)
+                    volcanoes.append(dict(hex=center_hex, size=size, height=height))
+
+            for volcano in volcanoes:
+                height = volcano.get('height')
+                size = volcano.get('size')
+                center_hex = volcano.get('hex')
+                print("\tVolcano: Size: {}, Height: {}".format(size, height))
+                size_list = list(range(size))
+                size_list.reverse()
+                hexes = []
+                for i in size_list:
+                    i += 1
+                    this_height = round(height / i)
+                    if i == 1:
+                        l = center_hex.surrounding + [center_hex]
+                    else:
+                        l = center_hex.bubble(distance=i)
+                    for h in l:
+                        hexes.append(h)
+                        h.altitude = center_hex.altitude + this_height
+                        h.add_feature(HexFeature.volcano)
+
+                last_altitude = 0
+                for h in hexes[:round(len(hexes)/2)]:
+                    for i in h.surrounding:
+                        if i.has_feature(HexFeature.volcano) is False:
+                            i.add_feature(HexFeature.volcano)
+                            i.altitude += 5
+                            i.altitude = min(i.altitude, 255)
+                            last_altitude = i.altitude
+                center_hex.altitude += last_altitude + 5
+
+                # lava flow
+                def step(active_hex):
+                    if active_hex.altitude < 50:
+                        return
+                    else:
+                        active_hex.add_feature(HexFeature.lava_flow)
+                        found = []
+                        for i in active_hex.surrounding:
+                            if i.altitude <= active_hex.altitude and i.has_feature(HexFeature.lava_flow) is False:
+                                found.append(i)
+                        found.sort(key=lambda x: x.altitude)
+                        if len(found) > 1:
+                            step(found[0])
+                        if len(found) > 2:
+                            step(found[1])
+
+                step(center_hex)
+                # active_hex = center_hex
+                # while(active_hex.altitude > 50):
+                #     active_hex.biome = Biome.volcanic_molten_river
+                #     for i in active_hex.surrounding:
+                #         if i.altitude < active_hex.altitude:
+
+
+
+        self.territories = []
+        self.generate_territories()
+        self.generate_resources()
+
+        print("Done") if self.debug else False
+
+    def generate_resources(self):
+        print("Placing resources")
+        ratings = HexResourceRating.list()
+        types = HexResourceType.list()
+
+        combined = []
+
+        for r in ratings:
+            for t in types:
+                combined.append(dict(rating=r,
+                                     type=t))
+        for h in self.hex_grid.hexes:
+            for resource in combined:
+                chance = (resource.get('rating').rarity * 
+                          resource.get('type').rarity * self.size / 1000 ) / (math.pow(self.size, 2))
+                given = random.uniform(0, 1)
+                if given <= chance:
+                    h.resource = resource
+
+
+    # def generate_features(self):
+    #     print("Making sea features")
+
+    #     self.sea_nodes = []
+    #     count = 0
+
+    #     num_assigned = 0
+
+    #     while num_assigned < self.num_ocean_hexes:
+    #         print("Sea {}".format(count))
+    #         # find the starting hex
+    #         found_hex = None
+    #         while found_hex is None:
+    #             rx = random.randint(0, len(self.hex_grid.grid) - 1)
+    #             ry = random.randint(0, len(self.hex_grid.grid) - 1)
+    #             hex_s = self.hex_grid.grid[rx][ry]
+    #             if hex_s.is_water:
+    #                 found_hex = hex_s
+    #         print("Found hex: {}".format(found_hex))
+
+    #         # make a sea
+    #         color = random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+    #         sea = Sea(self.hex_grid, count, color)
+    #         sea.last_added = [found_hex]
+
+    #         can_grow = len([m for m in found_hex.surrounding if m.is_water and m.sea is None]) > 0
+    #         print("Can grow", can_grow)
+    #         while len(sea.last_added) > 0:
+    #             frontier = []
+    #             for h in sea.last_added:
+    #                 frontier.extend([m for m in h.surrounding
+    #                                  if m.is_water and m.sea is None])
+    #             for f in frontier:
+    #                 self.hex_grid.grid[f.x][f.y].sea = sea
+    #                 sea.hexes.append(f)
+    #             sea.last_added = frontier
+    #         count += 1
+
+        # self.sea_nodes = []
+        # count = 0
+        # # find starting hexes randomly on the coast
+        # for y, row in enumerate(self.hex_grid.grid):
+        #     for x, col in enumerate(row):
+        #         chance = random.randint(0, 15)
+        #         if chance == 0:
+        #             this_hex = self.hex_grid.grid[x][y]
+        #             if this_hex.is_water and this_hex.is_coast:
+        #                 color = random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+        #                 sea = Sea(self.hex_grid, count, color)
+        #                 sea.hexes.append(this_hex)
+        #                 sea.last_added = [this_hex]
+        #                 this_hex.sea = sea
+        #                 self.sea_nodes.append(sea)
+        #                 count += 1
+        #
+        # # grow the seas into large blobs
+        # for i in range(20):
+        #     for sea in self.sea_nodes:
+        #         frontier = []
+        #         for h in sea.last_added:
+        #             frontier.extend([m for m in h.surrounding
+        #                              if m.is_water and m.sea is None])
+        #         for f in frontier:
+        #             f.sea = sea
+        #             self.hex_grid.grid[f.x][f.y] = f
+        #             sea.hexes.append(f)
+        #         sea.last_added = frontier
+
+        # combine neighboring blobs
+
+
+
+
+    def generate_territories(self):
+        """
+         Makes territories
+        """
+        # select number of territories to place
+        land_percent = 100 - self.sea_percent
+        if self.world.type is WorldType.terran:
+            num_territories = random.randint(round(1.2 * land_percent), round(1.6 * land_percent))
+        elif self.world.type is WorldType.barren:
+            num_territories = random.randint(3, 15)
+        else: 
+            num_territories = random.randint(30, 60)
+
+        # give each a land pixel to start
+        print("Making {} territories".format(num_territories)) if self.debug else False
+
+        c = 0
+        if num_territories == 0:
+            return
+        while len(self.territories) < num_territories:
+            rx = random.randint(0, len(self.hex_grid.grid) - 1)
+            ry = random.randint(0, len(self.hex_grid.grid) - 1)
+            hex_s = self.hex_grid.grid[rx][ry]
+            if hex_s.is_land:
+                color = random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
+                self.territories.append(Territory(self.hex_grid, hex_s, c, color))
+                c += 1
+
+        # loop over each, adding hexes
+        total_hexes = self.size * self.size
+        count = 0
+        while count < total_hexes:  #  i in range(0, 15):
+            count = 0
+            # print("Start: {} < {}".format(count, total_hexes))
+            territories = self.territories
+            random.shuffle(territories)
+            for t in territories:
+                frontier = t.frontier
+                for f in frontier:
+                    if f.is_owned is False:
+                        f.territory = t
+                        t.members.append(f)
+                        t.last_added.append(f)
+                count += t.size
+            # print("End: {} < {}".format(count, total_hexes))
+
+        # remove water hexes
+        for t in self.territories:
+            members = t.members
+            t.members = [h for h in t.members if h.is_land]
+            water_hexes = (h for h in members if h.is_water)
+            for h in water_hexes:
+                h.territory = None
+
+        # merge territories
+        print("Merging barren territories")
+
+        if self.world.type is WorldType.terran:
+            top = []
+            bottom = []
+            for t in self.territories:
+                avg_x = round(sum([i.x for i in t.members]) / len(t.members))
+                if t.avg_temp < 0 and (avg_x / self.hex_grid.size) < 0.5:
+                    top.append(t)
+                elif t.avg_temp < 0 and (avg_x / self.hex_grid.size) >= 0.5:
+                    bottom.append(t)
+
+            pick_top = None
+            pick_bottom = None
+            if len(top) > 0:
+                print("Merging {} territories from the top of the map".format( len(top) ))
+                pick_top = random.choice(top)
+                top.remove(pick_top)
+                for t in self.territories:
+                    if t in top:
+                        pick_top.members += t.members
+                        t.members = []
+
+            if len(bottom) > 0:
+                print("Merging {} territories from the bottom of the map".format( len(bottom) ))
+                pick_bottom = random.choice(bottom)
+                bottom.remove(pick_bottom)
+                for t in self.territories:
+                    if t in bottom:
+                        pick_bottom.members += t.members
+                        t.members = []
+
+            if len(top) > 0:
+                for h in pick_top.members:
+                    h.territory = pick_top
+
+            if len(bottom) > 0:
+                for h in pick_bottom.members:
+                    h.territory = pick_bottom
+
+            self.territories = [t for t in self.territories if t is not None]
+
+            print("{} empty territories being deleted".format(len([t for t in self.territories if len(t.members) == 0])))
+            self.territories = [t for t in self.territories if len(t.members) > 0]
+
+            print("There are now {} territories".format(len(self.territories)))
+
+        print("Splitting territories into contiguous blocks") if self.debug else False
+        for t in self.territories:
+            t.find_groups()
+
+    def _get_distances(self):
+        """
+         Gets the distances each land pixel to
+        """
+
+        if self.has_water is False:
+            # we don't care about distances otherwise
+            return
+
+        for y, row in enumerate(self.hex_grid.grid):
+            for x, col in enumerate(row):
+                hex = self.hex_grid.grid[x][y]
+                if hex.is_land:
+                    count = 1
+                    numbers = []
+
+                    east = hex.hex_east
+                    while east.is_land is True and count < self.size * 2:
+                        east = east.hex_east
+                        count += 1
+                    numbers.append(count)
+                    count = 1
+
+                    west = hex.hex_west
+                    while west.is_land is True and count < self.size * 2:
+                        west = west.hex_west
+                        count += 1
+                    numbers.append(count)
+                    count = 1
+
+
+                    north_east = hex.hex_north_east
+                    while north_east.is_land is True and count < self.size * 2:
+                        north_east = north_east.hex_north_east
+                        count += 1
+                    numbers.append(count)
+                    count = 1
+
+
+                    north_west = hex.hex_north_west
+                    while north_west.is_land is True and count < self.size * 2:
+                        north_west = north_west.hex_north_west
+                        count += 1
+
+                    numbers.append(count)
+                    count = 1
+
+
+                    south_west = hex.hex_south_west
+                    while south_west.is_land is True and count < self.size * 2:
+                        south_west = south_west.hex_south_west
+                        count += 1
+                    numbers.append(count)
+                    count = 1
+
+                    south_east = hex.hex_south_east
+                    while south_east.is_land is True and count < self.size * 2:
+                        south_east = south_east.hex_south_east
+                        count += 1
+                    numbers.append(count)
+
+                    hex.distance = min(numbers)
+
+    def _generate_rivers(self):
+        """
+        For each river source edge:
+            If the "down" hex of the left edge is the "one" or "two" hexes of this edge,
+                the left edge is invalid
+            If the "down" hex of the right edge is the "one" or "two" hexes of this edge,
+                the right edge is invalid
+            If two are valid:
+                E = lowest slope edge
+                If E.down is below sea level, end here
+                otherwise add this edge as a river segment
+            else if one is valid:
+                E = valid edge
+                If E.down is below sea level, end here
+                otherwise add this edge as a river segment
+            else if both are invalid:
+                Make a lake at the lowest of the "one" or "two" hexes of this edge
+                Make a new river source edge at an random edge pointing out from this lake
+                    that has a direction pointing out from the lake
+        """
+        land_percent = 100 - self.sea_percent
+        self.num_rivers = random.randint(round(3.5 * land_percent), round(4.5 * land_percent))
+        if self.world.type is WorldType.barren:
+            self.num_rivers = random.randint(round(self.sea_percent / 2), self.sea_percent)
+        print("Making {} rivers".format(self.num_rivers)) if self.debug else False
+
+        while len(self.rivers_sources) < self.num_rivers:
+            rx = random.randint(0, len(self.hex_grid.grid) - 1)
+            ry = random.randint(0, len(self.hex_grid.grid) - 1)
+            hex_s = self.hex_grid.grid[rx][ry]
+            if hex_s.is_inland and hex_s.altitude > self.sealevel + 35:
+                if hex_s.temperature < 0 and self.world.type is WorldType.terran:
+                    continue
+                random_side = random.choice(list(HexSide))
+                #print("Placing river source at {}, {}".format(rx, ry))
+                self.rivers_sources.append(RiverSegment(self.hex_grid, rx, ry, random_side, True))
+
+        print("Placed river sources") if self.debug else False
+
+        for r in self.rivers_sources: # loop over each source segment
+            segment = r # river segment we are looking at
+            finished = False
+            last_unselected = None
+            # we stop only when one of two things happen:
+            #   - a lake is formed
+            #   - we reached sea level
+            while finished is False:
+                # print("Segment: {}, {}".format(segment.x, segment.y))
+                side_one, side_two = segment.side.branching(segment.edge.direction)
+                down = segment.edge.down  # down-slope hex of this segment
+
+                # add the moisture to the one and two hexes in a 3 radius
+                one = segment.edge.one.bubble(distance=3)
+                two = segment.edge.two.bubble(distance=3)
+                both = list(set(one + two))
+                for hex in both:
+                    if hex.is_land:
+                        hex.moisture += 1
+                three = segment.edge.one.surrounding
+                four = segment.edge.two.surrounding
+                both = list(set(three + four))
+                for hex in both:
+                    if hex.is_land:
+                        hex.moisture += 1
+
+                # find the two Edges from the sides found branching
+                edge_one = down.get_edge(side_one)
+                edge_two = down.get_edge(side_two)
+
+                # check if either of the edges are valid river segment locations
+                one_valid = True
+                two_valid = True
+                if edge_one.down == segment.edge.one or edge_one.down == segment.edge.two:
+                    one_valid = False
+                if edge_two.down == segment.edge.one or edge_two.down == segment.edge.two:
+                    two_valid = False
+
+                if self.is_river(edge_one):
+                    one_valid = False
+                elif self.is_river(edge_two):
+                    two_valid = False
+
+                if one_valid and two_valid:
+                    # print("\tBoth are valid edges")
+                    if edge_one.down.altitude < edge_two.down.altitude:
+                        selected = edge_one
+                        selected_side = side_one
+                        last_unselected = edge_two, side_two
+                    else:
+                        selected = edge_two
+                        selected_side = side_two
+                        last_unselected = edge_one, side_one
+                    if selected.down.altitude < self.sealevel:
+                        finished = True
+                    segment.next = RiverSegment(self.hex_grid, selected.one.x, selected.one.y, selected_side, False)
+                    segment = segment.next
+                elif one_valid is True and two_valid is False:
+                    # print("\tOne is Valid")
+                    selected = edge_one
+                    last_unselected = edge_two, side_two
+                    if selected.down.altitude < self.sealevel:
+                        finished = True
+                    segment.next = RiverSegment(self.hex_grid, selected.one.x, selected.one.y, side_one, False)
+                    segment = segment.next
+                elif one_valid is False and two_valid is True:
+                    # print("\tTwo is valid")
+                    selected = edge_two
+                    last_unselected = edge_one, side_one
+                    if selected.down.altitude < self.sealevel:
+                        finished = True
+                    segment.next = RiverSegment(self.hex_grid, selected.one.x, selected.one.y, side_two, False)
+                    segment = segment.next
+                else:
+                    # import ipdb; ipdb.set_trace()
+                    # segment.x = last_unselected[0].one.x
+                    # segment.y = last_unselected[0].one.y
+                    # segment.side = last_unselected[1]
+                    # segment.is_source = True
+                    # finished = True
+                    # print("huh?")
+
+                    # both edges are invalid, make lake at one or two
+                    if segment.edge.one.altitude < segment.edge.two.altitude:
+                        lake = segment.edge.one
+                    else:
+                        lake = segment.edge.two
+                    lake.add_feature(HexFeature.lake)
+
+                    # moisture around lake increases
+                    surrounding = lake.surrounding
+                    for hex in surrounding:
+                        if hex.is_land:
+                            hex.moisture += 3
+
+                    # print("\tMade a lake at {}, {}".format(segment.x, segment.y))
+                    #
+                    # # make a new source river at an outer edge of the lake
+                    # chosen_edge = random.choice(lake.outer_edges)
+                    # self.rivers_sources.append(RiverSegment(self.hex_grid, chosen_edge.one.x, chosen_edge.one.y, chosen_edge.side, True))
+                    finished = True
+
+        final = []
+
+        for r in self.rivers_sources:
+            # remove rivers that are too small
+            if r.size > 2:
+                final.append(r)
+                while r.next is not None:
+                    # print("Segment: ", r.next)
+                    final.append(r.next)
+                    r = r.next
+        self.rivers = final
+
+    def is_river(self, edge):
+        """
+        Determines if an edge has a river
+        :param edge: Edge
+        :return: Boolean
+        """
+        for r in self.rivers_sources:
+            while r.next is not None:
+                if r.edge == edge:
+                    return True
+                r = r.next
+        return False
+
+    def find_river(self, x, y):
+        """ Finds river segments at an hex's x and y coordinates. Returns a list of EdgeSides
+            representing where the river segments are """
+        seg = []
+        for s in self.rivers:
+            if s.x == x and s.y == y:
+                seg.append(s.side)
+        return seg
+
+    def _adjust(self, xa, ya, x, y, xb, yb):
+        """ fix the sides of the map """
+        if self.grid[x][y] == 0:
+            d = math.fabs(xa - xb) + math.fabs(ya - yb)
+            ROUGHNESS = 8
+            v = (self.grid[xa][ya] + self.grid[xb][yb]) / 2.0 \
+                + (random.random() - 0.5) * d * ROUGHNESS
+            c = int(math.fabs(v) % 257)
+            if y == 0:
+                self.grid[x][self.size - 1] = c
+            if x == 0 or x == self.size - 1:
+                if y < self.size - 1:
+                    self.grid[x][self.size - 1 - y] = c
+            if c < WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]:
+                c = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]
+            elif c > WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]:
+                c = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]
+            self.grid[x][y] = c
+
+    def _subdivide(self, x1, y1, x2, y2):
+        """ subdivide the heightmap iterate """
+        if not ((x2 - x1 < 2.0) and (y2 - y1 < 2.0)):
+            x = int((x1 + x2) / 2)
+            y = int((y1 + y2) / 2)
+
+            v = int((self.grid[x1][y1] + self.grid[x2][y1] +
+                     self.grid[x2][y2] + self.grid[x1][y2]) / 4)
+            if v < WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]:
+                v = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]
+            elif v > WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]:
+                v = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]
+            self.grid[x][y] = v
+
+            self._adjust(x1, y1, x, y1, x2, y1)
+            self._adjust(x2, y1, x2, y, x2, y2)
+            self._adjust(x1, y2, x, y2, x2, y2)
+            self._adjust(x1, y1, x1, y, x1, y2)
+
+            self._subdivide(x1, y1, x, y)
+            self._subdivide(x, y1, x2, y)
+            self._subdivide(x, y, x2, y2)
+            self._subdivide(x1, y, x, y2)
+
+from app.generators.hexgen.edge import Edge, EdgeDirection
+from app.generators.hexgen.river import RiverSegment
+from app.generators.hexgen.hex import Hex, HexSide, HexFeature
