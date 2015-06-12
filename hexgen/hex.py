@@ -1,9 +1,7 @@
 import random
 from enum import Enum
 from app.lib.modeltype import EnumMixin
-from app.generators.hexgen.constants import *
-
-from app.generators.galaxygen.constants import ATMO_COMPOUNDS
+from hexgen.constants import *
 
 
 def blend_colors(color1, color2):

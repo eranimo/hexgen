@@ -1,6 +1,6 @@
-from app.generators.hexgen.hex import HexType, HexSide, HexFeature
+from hexgen.hex import HexType, HexSide, HexFeature
 from PIL import Image, ImageDraw
-from app.generators.hexgen.constants import *
+from hexgen.constants import *
 
 class HexGridDraw:
     """

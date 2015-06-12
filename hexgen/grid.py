@@ -3,9 +3,9 @@ import random
 import sys
 sys.setrecursionlimit(1500)
 
-from app.generators.hexgen.constants import *
-from app.generators.hexgen.hex import Sea, Biome
-from app.generators.hexgen.territory import Territory
+from hexgen.constants import *
+from hexgen.hex import Sea, Biome
+from hexgen.territory import Territory
 
 from app.models.universe.world import WorldType
 from app.models.game.province import HexResourceType, HexResourceRating
@@ -294,7 +294,7 @@ class GridGen:
                                      type=t))
         for h in self.hex_grid.hexes:
             for resource in combined:
-                chance = (resource.get('rating').rarity * 
+                chance = (resource.get('rating').rarity *
                           resource.get('type').rarity * self.size / 1000 ) / (math.pow(self.size, 2))
                 given = random.uniform(0, 1)
                 if given <= chance:
@@ -384,7 +384,7 @@ class GridGen:
             num_territories = random.randint(round(1.2 * land_percent), round(1.6 * land_percent))
         elif self.world.type is WorldType.barren:
             num_territories = random.randint(3, 15)
-        else: 
+        else:
             num_territories = random.randint(30, 60)
 
         # give each a land pixel to start
@@ -761,6 +761,6 @@ class GridGen:
             self._subdivide(x, y, x2, y2)
             self._subdivide(x1, y, x, y2)
 
-from app.generators.hexgen.edge import Edge, EdgeDirection
-from app.generators.hexgen.river import RiverSegment
+from hexgen.edge import Edge, EdgeDirection
+from hexgen.river import RiverSegment
 from app.generators.hexgen.hex import Hex, HexSide, HexFeature

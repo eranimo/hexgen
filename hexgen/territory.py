@@ -1,4 +1,4 @@
-from app.generators.hexgen.hex import Hex
+from hexgen.hex import Hex
 import sys
 sys.setrecursionlimit(1500)
 import random
