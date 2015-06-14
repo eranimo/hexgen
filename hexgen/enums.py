@@ -153,5 +153,5 @@ class MapType(SuperEnum):
     barren = (2, "Barren", TERRAIN_BARREN)
     gas = (3, "Gas", None)
     volcanic = (4, "Volcanic", TERRAIN_BARREN)
-    oceanuc = (5, "Oceanic", TERRAIN_OCEANIC)
+    oceanic = (5, "Oceanic", TERRAIN_OCEANIC)
     glacial = (6, "Barren", TERRAIN_BARREN)

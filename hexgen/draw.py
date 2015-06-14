@@ -1,3 +1,4 @@
+import os
 from hexgen.hex import HexType, HexSide, HexFeature
 from PIL import Image, ImageDraw
 from hexgen.constants import *
@@ -61,7 +62,7 @@ class HexGridDraw:
                             self.draw.line([pointer_5, origin], river_blue, width=3)
 
         print("Making ", file_name)
-        self.image.save(file_name)
+        self.image.save('bin/' + file_name)
 
     def draw_hex_edge(self, x, y, side, width=3, color=(0, 0, 0)):
         s = side
