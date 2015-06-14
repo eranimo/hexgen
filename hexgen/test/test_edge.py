@@ -1,7 +1,7 @@
 from unittest import TestCase
-from app.generators.hexgen.hex import Hex, HexSide
-from app.generators.hexgen.edge import Edge
-from app.generators.hexgen.grid import Grid
+from hexgen.hex import Hex, HexSide
+from hexgen.edge import Edge
+from hexgen.grid import Grid
 
 class TestEdge(TestCase):
 

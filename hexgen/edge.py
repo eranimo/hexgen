@@ -60,4 +60,5 @@ class Edge:
         Eg: A Hex's south-east is equal to the bottom-left's north-west
         """
         return other.one == self.two or (self.one == other.one and self.two == other.two)
-from app.generators.hexgen.hex import HexSide
+
+from hexgen.hex import HexSide

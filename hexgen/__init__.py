@@ -1,48 +1,47 @@
+import random
+
 from hexgen.grid import GridGen
 from hexgen.hex import HexFeature
 from hexgen.constants import *
 from hexgen.draw import HexGridDraw
-from app.decorators import exec_time
-import random
-
 
 # @exec_time
 def draw_grid(hex_grid):
-    def color_heightmap(hex):
-        alt = hex.altitude
+    def color_heightmap(h):
+        alt = h.altitude
         return alt, alt, alt
 
     # make terrain map
-    def color_terrain(hex):
-        return hex.color_terrain
+    def color_terrain(h):
+        return h.color_terrain
 
-    def color_rivers(hex):
-        return hex.color_rivers
+    def color_rivers(h):
+        return h.color_rivers
 
-    def color_temperature(hex):
-        return hex.color_temperature
+    def color_temperature(h):
+        return h.color_temperature
 
-    def color_biome(hex):
-        return hex.color_biome
+    def color_biome(h):
+        return h.color_biome
 
-    def color_territories(hex):
-        return hex.color_territories
+    def color_territories(h):
+        return h.color_territories
 
-    def color_satellite(hex):
-        return hex.color_satellite
+    def color_satellite(h):
+        return h.color_satellite
 
-    def color_features(hex):
-        if hex.has_feature(HexFeature.lava_flow):
+    def color_features(h):
+        if h.has_feature(HexFeature.lava_flow):
             return (200, 100, 0)
-        if hex.has_feature(HexFeature.volcano):
+        if h.has_feature(HexFeature.volcano):
             return (255, 0, 0)
-        if hex.has_feature(HexFeature.crater):
+        if h.has_feature(HexFeature.crater):
             return (255, 255, 0)
         return (200, 200, 200)
 
-    def color_resources(hex):
-        if hex.resource is not None:
-            return hex.resource.get('type').color
+    def color_resources(h):
+        if h.resource is not None:
+            return h.resource.get('type').color
         return (100, 100, 100)
 
     HexGridDraw(hex_grid, color_features, "map_features.png", show_coasts=True, rivers=False)
@@ -162,24 +161,16 @@ def draw_grid(hex_grid):
 #
 #     session.commit()
 
-#@exec_time
-def generate(colony, debug=False, save=True):
+
+def generate(params, debug=True, image=True):
     """
     Given a colony, creates a world map
-    :param colony: Colony instance
+    :param params: generator parameters
     :return: True or False on success
     """
+    hex_grid = GridGen(params=params, debug=debug)
 
-    # generate random values
-    sea_percent = random.randint(50, 70)
-    avg_temp = colony.world.avg_temp_celsius #random.randint(14, 25)
-    size = colony.world.size.size_hex
-
-    if debug:
-        print("Making world with Sea Percent: {} and Avg Temp: {}".format(sea_percent, avg_temp))
-    hex_grid = GridGen(colony, size, avg_surface_temp=avg_temp, debug=debug)
-    # if save:
-    #     save_grid(colony, hex_grid, debug=debug)
-
-    if debug:
+    if image:
         draw_grid(hex_grid)
+
+    return hex_grid

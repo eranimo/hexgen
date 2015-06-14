@@ -25,7 +25,7 @@ class HexGridDraw:
                 self.draw_hexagon(y * HEX_RECT_WIDTH + ((x % 2) * HEX_RADIUS),
                                   x * (SIDE_LENGTH + HEX_HEIGHT), x, y)
 
-                if self.show_coasts and grid.has_water:
+                if self.show_coasts and grid.params.get('hydrosphere'):
                     for e in hex.edges:
                         if hex.is_land and e.two.is_water:
                             self.draw_hex_edge(x, y, e.side, 4)

@@ -190,7 +190,7 @@ GLACIAL_SATELLITE = [
 ]
 
 
-# 
+#
 VOLCANIC_SATELLITE = [
     (65,  ImageColor.getrgb("hsl(13, 22%, 17%)")),
     (70,  ImageColor.getrgb("hsl(13, 22%, 20%)")),

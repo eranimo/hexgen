@@ -4,24 +4,44 @@ import sys
 sys.setrecursionlimit(1500)
 
 from hexgen.constants import *
-from hexgen.hex import Sea, Biome
 from hexgen.territory import Territory
+from hexgen.enums import OceanType, HexResourceType, HexResourceRating, MapType
 
-from app.models.universe.world import WorldType
-from app.models.game.province import HexResourceType, HexResourceRating
+default_params = {
+    "map_type": MapType.terran,
+    "size": 100,
+    "base_temp": 0,
+    "avg_temp": 15,
+    "sea_percent": 60,
+    "hydrosphere": True,
+    "ocean_type": OceanType.water,
+    "random_seed": None,
+    "height_range": (0, 255),
+    "pressure": 1, # bar
+    "axial_tilt": 23,
+
+    # features
+    "craters": False,
+    "volanoes": False,
+
+    "num_rivers": 50,
+
+    # territories
+    "num_territories": 0,
+
+}
+
 
 class GridBoundsException(Exception):
     pass
 
 
 class Grid:
-    def __init__(self, grid, sealevel, avg_surface_temp, has_water, colony, average_height):
+    def __init__(self, grid, params, sealevel, average_height):
         self.grid = grid
-        self.colony = colony
         self.sealevel = sealevel
         self.size = len(grid)
-        self.avg_surface_temp = avg_surface_temp
-        self.has_water = has_water
+        self.params = params
         self.average_height = average_height
 
         self.avg_altitude = 0
@@ -56,19 +76,26 @@ class GridGen:
     """ generates a heightmap as an array of integers between 1 and 255
     using the diamond-square algorithm"""
 
-    def __init__(self, colony, size, avg_surface_temp=20, seed=None, debug=False):
+    def __init__(self, params, debug=False):
         """ initialize """
+        self.params = default_params
+        self.params.update(params)
+
+        if debug:
+            print("Making world with params:")
+            for key, value in params.items():
+                print("\t{}:\t{}".format(key, value))
+
+
         self.debug = debug
-        self.world = colony.world
-        self.has_water = colony.world.hydrosphere >= 5
-        print("Planet with surface water: ", self.has_water)
-        self.sea_percent = colony.world.sea_percent
+        self.sea_percent = params.get('sea_percent')
 
-        if seed is not None:
-            random.seed(seed)
+        if type(params.get('random_seed')) is int:
+            random.seed(params.get('random_seed'))
 
 
-        self.size = size
+        # start making the heightmap
+        self.size = params.get('size')
         self.grid = [[0 for x in range(0, self.size)] for x in range(0, self.size)]
         self.grid[0][0] = random.randint(0, 255)
         self.grid[self.size - 1][0] = random.randint(0, 255)
@@ -85,16 +112,16 @@ class GridGen:
             avg.append(sum(g) / float(len(g)))
         self.top_height = max(m)
         self.average_height = sum(avg) / float(len(avg))
-        # self.sealevel = int(self.heightmap.average_height * (sea_percent * 2 / 100.0))
         self.sealevel = round(self.average_height * (self.sea_percent * 2 / 100))
+
         if self.sea_percent == 100:
             self.sealevel = 255
         print("Sea level at {} or {}%".format(self.sealevel, self.sea_percent))
 
+
         self.rivers = []
         self.rivers_sources = []
-
-        self.hex_grid = Grid(self.grid, self.sealevel, avg_surface_temp, self.has_water, colony, self.average_height)
+        self.hex_grid = Grid(self.grid, self.params, self.sealevel, self.average_height)
 
         # loop over grid turning each element into a Grid class
         print("Making grid") if self.debug else False
@@ -109,13 +136,12 @@ class GridGen:
         print("Computing hex distances") if self.debug else False
         self._get_distances()
 
-        if self.has_water:
+
+        if self.params.get('hydrosphere'):
             self._generate_rivers()
 
-        # give coastal land hexes moisture based on how close to the coast they are
-        print("Making coastal moisture") if self.debug else False
-        # TODO: This should be dependent on latitude (x coordinate)
-        if self.has_water:
+            # give coastal land hexes moisture based on how close to the coast they are
+            print("Making coastal moisture") if self.debug else False
             for y, row in enumerate(self.hex_grid.grid):
                 for x, col in enumerate(row):
                     hex = self.hex_grid.grid[x][y]
@@ -130,7 +156,7 @@ class GridGen:
         # generate aquifers
         num_aquifers = random.randint(5, 25)
 
-        if self.has_water is False or self.sea_percent == 100:
+        if self.params.get('hydrosphere') is False or self.sea_percent == 100:
             num_aquifers = 0
 
         print("Making {} aquifers".format(num_aquifers)) if self.debug else False
@@ -160,7 +186,7 @@ class GridGen:
         # decide terrain features
         print("Making terrain features") if self.debug else False
         # craters only form in barren planets with a normal or lower atmosphere
-        if self.world.type is WorldType.barren and self.world.pressure < 5:
+        if self.params.get('craters') is True:
 
             # decide number of craters
             num_craters = random.randint(0, 15)
@@ -208,7 +234,7 @@ class GridGen:
 
 
         # volcanoes
-        if self.world.type is WorldType.volcanic:
+        if self.params.get('volcanoes'):
 
             num_volcanoes = random.randint(0, 10)
             print("Making {} volcanoes".format(num_volcanoes))
@@ -267,13 +293,6 @@ class GridGen:
                             step(found[1])
 
                 step(center_hex)
-                # active_hex = center_hex
-                # while(active_hex.altitude > 50):
-                #     active_hex.biome = Biome.volcanic_molten_river
-                #     for i in active_hex.surrounding:
-                #         if i.altitude < active_hex.altitude:
-
-
 
         self.territories = []
         self.generate_territories()
@@ -300,92 +319,13 @@ class GridGen:
                 if given <= chance:
                     h.resource = resource
 
-
-    # def generate_features(self):
-    #     print("Making sea features")
-
-    #     self.sea_nodes = []
-    #     count = 0
-
-    #     num_assigned = 0
-
-    #     while num_assigned < self.num_ocean_hexes:
-    #         print("Sea {}".format(count))
-    #         # find the starting hex
-    #         found_hex = None
-    #         while found_hex is None:
-    #             rx = random.randint(0, len(self.hex_grid.grid) - 1)
-    #             ry = random.randint(0, len(self.hex_grid.grid) - 1)
-    #             hex_s = self.hex_grid.grid[rx][ry]
-    #             if hex_s.is_water:
-    #                 found_hex = hex_s
-    #         print("Found hex: {}".format(found_hex))
-
-    #         # make a sea
-    #         color = random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
-    #         sea = Sea(self.hex_grid, count, color)
-    #         sea.last_added = [found_hex]
-
-    #         can_grow = len([m for m in found_hex.surrounding if m.is_water and m.sea is None]) > 0
-    #         print("Can grow", can_grow)
-    #         while len(sea.last_added) > 0:
-    #             frontier = []
-    #             for h in sea.last_added:
-    #                 frontier.extend([m for m in h.surrounding
-    #                                  if m.is_water and m.sea is None])
-    #             for f in frontier:
-    #                 self.hex_grid.grid[f.x][f.y].sea = sea
-    #                 sea.hexes.append(f)
-    #             sea.last_added = frontier
-    #         count += 1
-
-        # self.sea_nodes = []
-        # count = 0
-        # # find starting hexes randomly on the coast
-        # for y, row in enumerate(self.hex_grid.grid):
-        #     for x, col in enumerate(row):
-        #         chance = random.randint(0, 15)
-        #         if chance == 0:
-        #             this_hex = self.hex_grid.grid[x][y]
-        #             if this_hex.is_water and this_hex.is_coast:
-        #                 color = random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)
-        #                 sea = Sea(self.hex_grid, count, color)
-        #                 sea.hexes.append(this_hex)
-        #                 sea.last_added = [this_hex]
-        #                 this_hex.sea = sea
-        #                 self.sea_nodes.append(sea)
-        #                 count += 1
-        #
-        # # grow the seas into large blobs
-        # for i in range(20):
-        #     for sea in self.sea_nodes:
-        #         frontier = []
-        #         for h in sea.last_added:
-        #             frontier.extend([m for m in h.surrounding
-        #                              if m.is_water and m.sea is None])
-        #         for f in frontier:
-        #             f.sea = sea
-        #             self.hex_grid.grid[f.x][f.y] = f
-        #             sea.hexes.append(f)
-        #         sea.last_added = frontier
-
-        # combine neighboring blobs
-
-
-
-
     def generate_territories(self):
         """
          Makes territories
         """
         # select number of territories to place
         land_percent = 100 - self.sea_percent
-        if self.world.type is WorldType.terran:
-            num_territories = random.randint(round(1.2 * land_percent), round(1.6 * land_percent))
-        elif self.world.type is WorldType.barren:
-            num_territories = random.randint(3, 15)
-        else:
-            num_territories = random.randint(30, 60)
+        num_territories = self.params.get('num_territories')
 
         # give each a land pixel to start
         print("Making {} territories".format(num_territories)) if self.debug else False
@@ -431,7 +371,7 @@ class GridGen:
         # merge territories
         print("Merging barren territories")
 
-        if self.world.type is WorldType.terran:
+        if self.params.get('num_territories') > 0:
             top = []
             bottom = []
             for t in self.territories:
@@ -482,28 +422,29 @@ class GridGen:
 
     def _get_distances(self):
         """
-         Gets the distances each land pixel to
+        Gets the distances each land pixel is to the coastline.
+        TODO: Make this more efficient
         """
 
-        if self.has_water is False:
+        if not self.params.get('hydrosphere'):
             # we don't care about distances otherwise
             return
 
         for y, row in enumerate(self.hex_grid.grid):
             for x, col in enumerate(row):
-                hex = self.hex_grid.grid[x][y]
-                if hex.is_land:
+                h = self.hex_grid.grid[x][y]
+                if h.is_land:
                     count = 1
                     numbers = []
 
-                    east = hex.hex_east
+                    east = h.hex_east
                     while east.is_land is True and count < self.size * 2:
                         east = east.hex_east
                         count += 1
                     numbers.append(count)
                     count = 1
 
-                    west = hex.hex_west
+                    west = h.hex_west
                     while west.is_land is True and count < self.size * 2:
                         west = west.hex_west
                         count += 1
@@ -511,7 +452,7 @@ class GridGen:
                     count = 1
 
 
-                    north_east = hex.hex_north_east
+                    north_east = h.hex_north_east
                     while north_east.is_land is True and count < self.size * 2:
                         north_east = north_east.hex_north_east
                         count += 1
@@ -519,7 +460,7 @@ class GridGen:
                     count = 1
 
 
-                    north_west = hex.hex_north_west
+                    north_west = h.hex_north_west
                     while north_west.is_land is True and count < self.size * 2:
                         north_west = north_west.hex_north_west
                         count += 1
@@ -528,20 +469,20 @@ class GridGen:
                     count = 1
 
 
-                    south_west = hex.hex_south_west
+                    south_west = h.hex_south_west
                     while south_west.is_land is True and count < self.size * 2:
                         south_west = south_west.hex_south_west
                         count += 1
                     numbers.append(count)
                     count = 1
 
-                    south_east = hex.hex_south_east
+                    south_east = h.hex_south_east
                     while south_east.is_land is True and count < self.size * 2:
                         south_east = south_east.hex_south_east
                         count += 1
                     numbers.append(count)
 
-                    hex.distance = min(numbers)
+                    h.distance = min(numbers)
 
     def _generate_rivers(self):
         """
@@ -564,17 +505,16 @@ class GridGen:
                     that has a direction pointing out from the lake
         """
         land_percent = 100 - self.sea_percent
-        self.num_rivers = random.randint(round(3.5 * land_percent), round(4.5 * land_percent))
-        if self.world.type is WorldType.barren:
-            self.num_rivers = random.randint(round(self.sea_percent / 2), self.sea_percent)
-        print("Making {} rivers".format(self.num_rivers)) if self.debug else False
+        num_rivers = self.params.get('num_rivers')
+        print("Making {} rivers".format(num_rivers)) if self.debug else False
 
-        while len(self.rivers_sources) < self.num_rivers:
+        while len(self.rivers_sources) < num_rivers:
             rx = random.randint(0, len(self.hex_grid.grid) - 1)
             ry = random.randint(0, len(self.hex_grid.grid) - 1)
             hex_s = self.hex_grid.grid[rx][ry]
             if hex_s.is_inland and hex_s.altitude > self.sealevel + 35:
-                if hex_s.temperature < 0 and self.world.type is WorldType.terran:
+                if hex_s.temperature < 0:
+                    # don't place rivers above +35 altitude when the temperature is below zero
                     continue
                 random_side = random.choice(list(HexSide))
                 #print("Placing river source at {}, {}".format(rx, ry))
@@ -731,10 +671,11 @@ class GridGen:
             if x == 0 or x == self.size - 1:
                 if y < self.size - 1:
                     self.grid[x][self.size - 1 - y] = c
-            if c < WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]:
-                c = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]
-            elif c > WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]:
-                c = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]
+            range_low, range_high = self.params.get('height_range')
+            if c < range_low:
+                c = range_low
+            elif c > range_high:
+                c = range_high
             self.grid[x][y] = c
 
     def _subdivide(self, x1, y1, x2, y2):
@@ -745,10 +686,11 @@ class GridGen:
 
             v = int((self.grid[x1][y1] + self.grid[x2][y1] +
                      self.grid[x2][y2] + self.grid[x1][y2]) / 4)
-            if v < WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]:
-                v = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[0]
-            elif v > WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]:
-                v = WORLD_TYPE_HEIGHT_RANGES.get(self.world.type.id)[1]
+            range_low, range_high = self.params.get('height_range')
+            if v < range_low:
+                v = range_low
+            elif v > range_high:
+                v = range_high
             self.grid[x][y] = v
 
             self._adjust(x1, y1, x, y1, x2, y1)
@@ -761,6 +703,6 @@ class GridGen:
             self._subdivide(x, y, x2, y2)
             self._subdivide(x1, y, x, y2)
 
-from hexgen.edge import Edge, EdgeDirection
+
 from hexgen.river import RiverSegment
-from app.generators.hexgen.hex import Hex, HexSide, HexFeature
+from hexgen.hex import Hex, HexSide, HexFeature
