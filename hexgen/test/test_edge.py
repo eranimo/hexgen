@@ -2,27 +2,19 @@ from unittest import TestCase
 from hexgen.hex import Hex, HexSide
 from hexgen.edge import Edge
 from hexgen.grid import Grid
+from hexgen.grid import default_params
+from hexgen.heightmap import Heightmap
 
 class TestEdge(TestCase):
 
     def setUp(self):
-        hex_grid = []
-        self.grid = Grid(hex_grid)
-        h1 = Hex(self.grid, 0, 0, 1)
-        h2 = Hex(self.grid, 0, 1, 11)
-        h3 = Hex(self.grid, 0, 2, 23)
+        params = default_params
+        self.size = 50
+        params['size'] = self.size
+        self.heightmap = Heightmap(params)
 
-        h4 = Hex(self.grid, 1, 0, 5)
-        h5 = Hex(self.grid, 1, 1, 15)
-        h6 = Hex(self.grid, 1, 2, 33)
+        self.grid = Grid(self.heightmap, params)
 
-        h7 = Hex(self.grid, 2, 0, 32)
-        h8 = Hex(self.grid, 2, 1, 36)
-        h9 = Hex(self.grid, 2, 2, 36)
-        self.grid.grid.append([h1, h2, h3])
-        self.grid.grid.append([h4, h5, h6])
-        self.grid.grid.append([h7, h8, h9])
-        self.grid.calculate()
         self.h1 = self.grid.find_hex(0, 0)
         self.h4 = self.grid.find_hex(1, 0)
         self.h9 = self.grid.find_hex(2, 2)

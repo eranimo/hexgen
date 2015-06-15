@@ -4,7 +4,7 @@ import random
 
 class Heightmap:
 
-    def __init__(self, params):
+    def __init__(self, params, debug=False):
         self.params = params
 
         # start making the heightmap
@@ -31,7 +31,8 @@ class Heightmap:
         if sea_percent == 100:
             self.sealevel = 255
 
-        print("Sea level at {} or {}%".format(self.sealevel, sea_percent))
+        if debug:
+            print("Sea level at {} or {}%".format(self.sealevel, sea_percent))
 
 
     def height_at(self, x, y):
@@ -41,7 +42,7 @@ class Heightmap:
         """ fix the sides of the map """
         if self.grid[x][y] == 0:
             d = math.fabs(xa - xb) + math.fabs(ya - yb)
-            ROUGHNESS = 8
+            ROUGHNESS = self.params.get('roughness')
             v = (self.grid[xa][ya] + self.grid[xb][yb]) / 2.0 \
                 + (random.random() - 0.5) * d * ROUGHNESS
             c = int(math.fabs(v) % 257)

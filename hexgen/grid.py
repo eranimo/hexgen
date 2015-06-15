@@ -18,6 +18,7 @@ default_params = {
     "hydrosphere": True,
     "ocean_type": OceanType.water,
     "random_seed": None,
+    "roughness": 8,
     "height_range": (0, 255),
     "pressure": 1, # bar
     "axial_tilt": 23,
@@ -39,7 +40,7 @@ class GridBoundsException(Exception):
 
 
 class Grid:
-    def __init__(self, heightmap, params):
+    def __init__(self, heightmap, params, debug=False):
         self.heightmap = heightmap
         self.sealevel = heightmap.sealevel
         self.params = params
@@ -49,7 +50,8 @@ class Grid:
 
         self.hexes = []
 
-        print("Making grid")
+        if debug:
+            print("Making grid")
         self.num_ocean_hexes = 0
         self.grid = copy(self.heightmap.grid)
         for y, row in enumerate(self.grid):
