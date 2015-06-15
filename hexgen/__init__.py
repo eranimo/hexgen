@@ -1,6 +1,6 @@
 import random
 
-from hexgen.grid import GridGen
+from hexgen.mapgen import MapGen
 from hexgen.hex import HexFeature
 from hexgen.constants import *
 from hexgen.draw import HexGridDraw
@@ -168,7 +168,7 @@ def generate(params, debug=True, image=True):
     :param params: generator parameters
     :return: True or False on success
     """
-    hex_grid = GridGen(params=params, debug=debug)
+    hex_grid = MapGen(params=params, debug=debug)
 
     if image:
         draw_grid(hex_grid)

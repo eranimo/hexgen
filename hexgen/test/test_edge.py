@@ -1,8 +1,9 @@
 from unittest import TestCase
-from hexgen.hex import Hex, HexSide
+
+from hexgen.hex import HexSide
 from hexgen.edge import Edge
 from hexgen.grid import Grid
-from hexgen.grid import default_params
+from hexgen.mapgen import default_params
 from hexgen.heightmap import Heightmap
 
 class TestEdge(TestCase):

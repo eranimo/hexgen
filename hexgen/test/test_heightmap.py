@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from hexgen.grid import default_params
+from hexgen.mapgen import default_params
 from hexgen.heightmap import Heightmap
 
 class TestHeightmap(TestCase):
