@@ -1,6 +1,7 @@
 import math
 import random
 import sys
+from copy import copy
 sys.setrecursionlimit(1500)
 
 from hexgen.constants import *
@@ -37,16 +38,30 @@ class GridBoundsException(Exception):
 
 
 class Grid:
-    def __init__(self, grid, params, sealevel, average_height):
-        self.grid = grid
-        self.sealevel = sealevel
-        self.size = len(grid)
+    def __init__(self, heightmap, params):
+        self.heightmap = heightmap
+        self.sealevel = heightmap.sealevel
         self.params = params
-        self.average_height = average_height
+        self.average_height = heightmap.average_height
 
         self.avg_altitude = 0
 
         self.hexes = []
+
+        print("Making grid")
+        self.num_ocean_hexes = 0
+        self.grid = copy(self.heightmap.grid)
+        for y, row in enumerate(self.grid):
+            for x, col in enumerate(row):
+                self.grid[x][y] = Hex(self, x, y, self.heightmap.height_at(x, y))
+                if self.grid[x][y].is_water:
+                    self.num_ocean_hexes += 1
+
+        self.calculate()
+
+    @property
+    def size(self):
+        return self.params.get('size')
 
     def find_hex(self, x, y):
         """ Finds a hex and a x and y coordinate """
@@ -71,6 +86,85 @@ class Grid:
         number = round(len(self.hexes) * 0.10)
         self.coldest_hexes = self.hexes[:number]
 
+class Heightmap:
+
+    def __init__(self, params):
+        self.params = params
+
+        # start making the heightmap
+        self.size = params.get('size')
+        self.grid = [[0 for x in range(0, self.size)] for x in range(0, self.size)]
+        self.grid[0][0] = random.randint(0, 255)
+        self.grid[self.size - 1][0] = random.randint(0, 255)
+        self.grid[0][self.size - 1] = random.randint(0, 255)
+        self.grid[self.size - 1][self.size - 1] = random.randint(0, 255)
+        self._subdivide(0, 0, self.size - 1, self.size - 1)
+
+        # compute average and record top height
+        avg = []
+        m = []
+        for g in self.grid:
+            m.append(max(g))
+            avg.append(sum(g) / float(len(g)))
+
+        self.top_height = max(m)
+        self.average_height = sum(avg) / float(len(avg))
+        sea_percent = params.get('sea_percent')
+        self.sealevel = round(self.average_height * (sea_percent * 2 / 100))
+
+        if sea_percent == 100:
+            self.sealevel = 255
+
+        print("Sea level at {} or {}%".format(self.sealevel, sea_percent))
+
+    def height_at(self, x, y):
+        return self.grid[x][y]
+
+    def _adjust(self, xa, ya, x, y, xb, yb):
+        """ fix the sides of the map """
+        if self.grid[x][y] == 0:
+            d = math.fabs(xa - xb) + math.fabs(ya - yb)
+            ROUGHNESS = 8
+            v = (self.grid[xa][ya] + self.grid[xb][yb]) / 2.0 \
+                + (random.random() - 0.5) * d * ROUGHNESS
+            c = int(math.fabs(v) % 257)
+            if y == 0:
+                self.grid[x][self.size - 1] = c
+            if x == 0 or x == self.size - 1:
+                if y < self.size - 1:
+                    self.grid[x][self.size - 1 - y] = c
+            range_low, range_high = self.params.get('height_range')
+            if c < range_low:
+                c = range_low
+            elif c > range_high:
+                c = range_high
+            self.grid[x][y] = c
+
+    def _subdivide(self, x1, y1, x2, y2):
+        """ subdivide the heightmap iterate """
+        if not ((x2 - x1 < 2.0) and (y2 - y1 < 2.0)):
+            x = int((x1 + x2) / 2)
+            y = int((y1 + y2) / 2)
+
+            v = int((self.grid[x1][y1] + self.grid[x2][y1] +
+                     self.grid[x2][y2] + self.grid[x1][y2]) / 4)
+            range_low, range_high = self.params.get('height_range')
+            if v < range_low:
+                v = range_low
+            elif v > range_high:
+                v = range_high
+            self.grid[x][y] = v
+
+            self._adjust(x1, y1, x, y1, x2, y1)
+            self._adjust(x2, y1, x2, y, x2, y2)
+            self._adjust(x1, y2, x, y2, x2, y2)
+            self._adjust(x1, y1, x1, y, x1, y2)
+
+            self._subdivide(x1, y1, x, y)
+            self._subdivide(x, y1, x2, y)
+            self._subdivide(x, y, x2, y2)
+            self._subdivide(x1, y, x, y2)
+
 
 class GridGen:
     """ generates a heightmap as an array of integers between 1 and 255
@@ -88,51 +182,17 @@ class GridGen:
 
 
         self.debug = debug
-        self.sea_percent = params.get('sea_percent')
 
         if type(params.get('random_seed')) is int:
             random.seed(params.get('random_seed'))
 
+        self.heightmap = Heightmap(self.params)
 
-        # start making the heightmap
-        self.size = params.get('size')
-        self.grid = [[0 for x in range(0, self.size)] for x in range(0, self.size)]
-        self.grid[0][0] = random.randint(0, 255)
-        self.grid[self.size - 1][0] = random.randint(0, 255)
-        self.grid[0][self.size - 1] = random.randint(0, 255)
-        self.grid[self.size - 1][self.size - 1] = random.randint(0, 255)
-        self._subdivide(0, 0, self.size - 1, self.size - 1)
-
-
-        # compute average and record top height
-        avg = []
-        m = []
-        for g in self.grid:
-            m.append(max(g))
-            avg.append(sum(g) / float(len(g)))
-        self.top_height = max(m)
-        self.average_height = sum(avg) / float(len(avg))
-        self.sealevel = round(self.average_height * (self.sea_percent * 2 / 100))
-
-        if self.sea_percent == 100:
-            self.sealevel = 255
-        print("Sea level at {} or {}%".format(self.sealevel, self.sea_percent))
-
+        self.hex_grid = Grid(self.heightmap, self.params)
 
         self.rivers = []
         self.rivers_sources = []
-        self.hex_grid = Grid(self.grid, self.params, self.sealevel, self.average_height)
 
-        # loop over grid turning each element into a Grid class
-        print("Making grid") if self.debug else False
-        self.num_ocean_hexes = 0
-        for y, row in enumerate(self.grid):
-            for x, col in enumerate(row):
-                self.hex_grid.grid[x][y] = Hex(self.hex_grid, x, y, self.grid[x][y])
-                if self.hex_grid.grid[x][y].is_water:
-                    self.num_ocean_hexes += 1
-
-        self.hex_grid.calculate()
         print("Computing hex distances") if self.debug else False
         self._get_distances()
 
@@ -156,7 +216,7 @@ class GridGen:
         # generate aquifers
         num_aquifers = random.randint(5, 25)
 
-        if self.params.get('hydrosphere') is False or self.sea_percent == 100:
+        if self.params.get('hydrosphere') is False or self.params.get('sea_percent') == 100:
             num_aquifers = 0
 
         print("Making {} aquifers".format(num_aquifers)) if self.debug else False
@@ -314,7 +374,7 @@ class GridGen:
         for h in self.hex_grid.hexes:
             for resource in combined:
                 chance = (resource.get('rating').rarity *
-                          resource.get('type').rarity * self.size / 1000 ) / (math.pow(self.size, 2))
+                          resource.get('type').rarity * self.hex_grid.size / 1000 ) / (math.pow(self.hex_grid.size, 2))
                 given = random.uniform(0, 1)
                 if given <= chance:
                     h.resource = resource
@@ -324,7 +384,7 @@ class GridGen:
          Makes territories
         """
         # select number of territories to place
-        land_percent = 100 - self.sea_percent
+        land_percent = 100 - self.params.get('sea_percent')
         num_territories = self.params.get('num_territories')
 
         # give each a land pixel to start
@@ -343,7 +403,7 @@ class GridGen:
                 c += 1
 
         # loop over each, adding hexes
-        total_hexes = self.size * self.size
+        total_hexes = self.hex_grid.size * self.hex_grid.size
         count = 0
         while count < total_hexes:  #  i in range(0, 15):
             count = 0
@@ -438,14 +498,14 @@ class GridGen:
                     numbers = []
 
                     east = h.hex_east
-                    while east.is_land is True and count < self.size * 2:
+                    while east.is_land is True and count < self.hex_grid.size * 2:
                         east = east.hex_east
                         count += 1
                     numbers.append(count)
                     count = 1
 
                     west = h.hex_west
-                    while west.is_land is True and count < self.size * 2:
+                    while west.is_land is True and count < self.hex_grid.size * 2:
                         west = west.hex_west
                         count += 1
                     numbers.append(count)
@@ -453,7 +513,7 @@ class GridGen:
 
 
                     north_east = h.hex_north_east
-                    while north_east.is_land is True and count < self.size * 2:
+                    while north_east.is_land is True and count < self.hex_grid.size * 2:
                         north_east = north_east.hex_north_east
                         count += 1
                     numbers.append(count)
@@ -461,7 +521,7 @@ class GridGen:
 
 
                     north_west = h.hex_north_west
-                    while north_west.is_land is True and count < self.size * 2:
+                    while north_west.is_land is True and count < self.hex_grid.size * 2:
                         north_west = north_west.hex_north_west
                         count += 1
 
@@ -470,14 +530,14 @@ class GridGen:
 
 
                     south_west = h.hex_south_west
-                    while south_west.is_land is True and count < self.size * 2:
+                    while south_west.is_land is True and count < self.hex_grid.size * 2:
                         south_west = south_west.hex_south_west
                         count += 1
                     numbers.append(count)
                     count = 1
 
                     south_east = h.hex_south_east
-                    while south_east.is_land is True and count < self.size * 2:
+                    while south_east.is_land is True and count < self.hex_grid.size * 2:
                         south_east = south_east.hex_south_east
                         count += 1
                     numbers.append(count)
@@ -504,15 +564,15 @@ class GridGen:
                 Make a new river source edge at an random edge pointing out from this lake
                     that has a direction pointing out from the lake
         """
-        land_percent = 100 - self.sea_percent
+        land_percent = 100 - self.params.get('sea_percent')
         num_rivers = self.params.get('num_rivers')
         print("Making {} rivers".format(num_rivers)) if self.debug else False
 
         while len(self.rivers_sources) < num_rivers:
-            rx = random.randint(0, len(self.hex_grid.grid) - 1)
-            ry = random.randint(0, len(self.hex_grid.grid) - 1)
-            hex_s = self.hex_grid.grid[rx][ry]
-            if hex_s.is_inland and hex_s.altitude > self.sealevel + 35:
+            rx = random.randint(0, self.hex_grid.size - 1)
+            ry = random.randint(0, self.hex_grid.size - 1)
+            hex_s = self.hex_grid.find_hex(rx, ry)
+            if hex_s.is_inland and hex_s.altitude > self.hex_grid.sealevel + 35:
                 if hex_s.temperature < 0:
                     # don't place rivers above +35 altitude when the temperature is below zero
                     continue
@@ -575,7 +635,7 @@ class GridGen:
                         selected = edge_two
                         selected_side = side_two
                         last_unselected = edge_one, side_one
-                    if selected.down.altitude < self.sealevel:
+                    if selected.down.altitude < self.hex_grid.sealevel:
                         finished = True
                     segment.next = RiverSegment(self.hex_grid, selected.one.x, selected.one.y, selected_side, False)
                     segment = segment.next
@@ -583,7 +643,7 @@ class GridGen:
                     # print("\tOne is Valid")
                     selected = edge_one
                     last_unselected = edge_two, side_two
-                    if selected.down.altitude < self.sealevel:
+                    if selected.down.altitude < self.hex_grid.sealevel:
                         finished = True
                     segment.next = RiverSegment(self.hex_grid, selected.one.x, selected.one.y, side_one, False)
                     segment = segment.next
@@ -591,7 +651,7 @@ class GridGen:
                     # print("\tTwo is valid")
                     selected = edge_two
                     last_unselected = edge_one, side_one
-                    if selected.down.altitude < self.sealevel:
+                    if selected.down.altitude < self.hex_grid.sealevel:
                         finished = True
                     segment.next = RiverSegment(self.hex_grid, selected.one.x, selected.one.y, side_two, False)
                     segment = segment.next
@@ -657,51 +717,6 @@ class GridGen:
             if s.x == x and s.y == y:
                 seg.append(s.side)
         return seg
-
-    def _adjust(self, xa, ya, x, y, xb, yb):
-        """ fix the sides of the map """
-        if self.grid[x][y] == 0:
-            d = math.fabs(xa - xb) + math.fabs(ya - yb)
-            ROUGHNESS = 8
-            v = (self.grid[xa][ya] + self.grid[xb][yb]) / 2.0 \
-                + (random.random() - 0.5) * d * ROUGHNESS
-            c = int(math.fabs(v) % 257)
-            if y == 0:
-                self.grid[x][self.size - 1] = c
-            if x == 0 or x == self.size - 1:
-                if y < self.size - 1:
-                    self.grid[x][self.size - 1 - y] = c
-            range_low, range_high = self.params.get('height_range')
-            if c < range_low:
-                c = range_low
-            elif c > range_high:
-                c = range_high
-            self.grid[x][y] = c
-
-    def _subdivide(self, x1, y1, x2, y2):
-        """ subdivide the heightmap iterate """
-        if not ((x2 - x1 < 2.0) and (y2 - y1 < 2.0)):
-            x = int((x1 + x2) / 2)
-            y = int((y1 + y2) / 2)
-
-            v = int((self.grid[x1][y1] + self.grid[x2][y1] +
-                     self.grid[x2][y2] + self.grid[x1][y2]) / 4)
-            range_low, range_high = self.params.get('height_range')
-            if v < range_low:
-                v = range_low
-            elif v > range_high:
-                v = range_high
-            self.grid[x][y] = v
-
-            self._adjust(x1, y1, x, y1, x2, y1)
-            self._adjust(x2, y1, x2, y, x2, y2)
-            self._adjust(x1, y2, x, y2, x2, y2)
-            self._adjust(x1, y1, x1, y, x1, y2)
-
-            self._subdivide(x1, y1, x, y)
-            self._subdivide(x, y1, x2, y)
-            self._subdivide(x, y, x2, y2)
-            self._subdivide(x1, y, x, y2)
 
 
 from hexgen.river import RiverSegment

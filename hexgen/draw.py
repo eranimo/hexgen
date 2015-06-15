@@ -10,8 +10,8 @@ class HexGridDraw:
 
     def __init__(self, grid, color_func, file_name, rivers=True,
                  numbers=False, show_coasts=False, borders=False):
-        self.image = Image.new("RGB", (int(HEX_RECT_WIDTH * (grid.size + 0.6)),
-                                       int((HEX_RECT_WIDTH) * grid.size)))
+        self.image = Image.new("RGB", (int(HEX_RECT_WIDTH * (grid.hex_grid.size + 0.6)),
+                                       int((HEX_RECT_WIDTH) * grid.hex_grid.size)))
         self.draw = ImageDraw.Draw(self.image)
         self.Grid = grid
         self.color_func = color_func
@@ -20,18 +20,18 @@ class HexGridDraw:
         self.show_coasts = show_coasts
         self.borders = borders
 
-        for y in range(grid.size):
-            for x in range(grid.size):
-                hex = grid.grid[x][y]
+        for y in range(grid.hex_grid.size):
+            for x in range(grid.hex_grid.size):
+                h = grid.hex_grid.find_hex(x, y)
                 self.draw_hexagon(y * HEX_RECT_WIDTH + ((x % 2) * HEX_RADIUS),
                                   x * (SIDE_LENGTH + HEX_HEIGHT), x, y)
 
                 if self.show_coasts and grid.params.get('hydrosphere'):
-                    for e in hex.edges:
-                        if hex.is_land and e.two.is_water:
+                    for e in h.edges:
+                        if h.is_land and e.two.is_water:
                             self.draw_hex_edge(x, y, e.side, 4)
                 if self.borders:
-                    for e in hex.edges:
+                    for e in h.edges:
                         if e.one.is_owned and e.two.is_owned and \
                                         e.one.territory.id != e.two.territory.id:
                             self.draw_hex_edge(x, y, e.side, 2)
@@ -99,7 +99,7 @@ class HexGridDraw:
         pointer_4 = (cx, cy + SIDE_LENGTH + HEX_HEIGHT)
         pointer_5 = (cx, cy + HEX_HEIGHT)
 
-        hex = self.Grid.grid[x][y]
+        h = self.Grid.hex_grid.find_hex(x, y)
         self.draw.polygon([origin,
                            pointer,
                            pointer_2,
@@ -107,7 +107,7 @@ class HexGridDraw:
                            pointer_4,
                            pointer_5],
                           outline=None,
-                          fill=self.color_func(hex))
+                          fill=self.color_func(h))
 
         self.make_line(origin, pointer)
         self.make_line(pointer, pointer_2)
@@ -117,8 +117,8 @@ class HexGridDraw:
         self.make_line(pointer_5, origin)
 
         if self.numbers:
-            self.draw.text((cx + 10, cy + 3), str(hex.altitude), fill=(200, 200, 200))
+            self.draw.text((cx + 10, cy + 3), str(h.altitude), fill=(200, 200, 200))
             self.draw.text((cx + 4, cy + 11), str(x), fill=(200, 200, 200))
             self.draw.text((cx + 4, cy + 19), str(y), fill=(200, 200, 200))
-            self.draw.text((cx + 18, cy + 11), str(hex.moisture), fill=(200, 200, 200))
-            self.draw.text((cx + 18, cy + 19), str(hex.temperature), fill=(200, 200, 200))
+            self.draw.text((cx + 18, cy + 11), str(h.moisture), fill=(200, 200, 200))
+            self.draw.text((cx + 18, cy + 19), str(h.temperature), fill=(200, 200, 200))
