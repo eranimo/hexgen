@@ -1,7 +1,6 @@
-import os
-from hexgen.hex import HexType, HexSide, HexFeature
+from hexgen.hex import HexSide
 from PIL import Image, ImageDraw
-from hexgen.constants import *
+from hexgen.constants import SIDE_LENGTH, HEX_HEIGHT, HEX_RADIUS, HEX_RECT_HEIGHT, HEX_RECT_WIDTH
 
 class HexGridDraw:
     """
