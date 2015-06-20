@@ -53,21 +53,21 @@ class Calendar:
 
         # print('total', sum([x.num_days for x in self.months]))
 
-
-import pprint
-pp = pprint.PrettyPrinter(indent=4)
-echo = pp.pprint
-
-def generate_calendar(len_year, len_day):
-    """
-    len_year = (int) length of year in Earth days
-    len_day = (int) length of day in Earth hours
-    """
-    print("Generating calendar")
-    calendar = Calendar(len_year, len_day)
-    echo(calendar.months)
-    return calendar
-
-
-generate_calendar(365, 24)
-generate_calendar(231, 34)
+#
+# import pprint
+# pp = pprint.PrettyPrinter(indent=4)
+# echo = pp.pprint
+#
+# def generate_calendar(len_year, len_day):
+#     """
+#     len_year = (int) length of year in Earth days
+#     len_day = (int) length of day in Earth hours
+#     """
+#     print("Generating calendar")
+#     calendar = Calendar(len_year, len_day)
+#     echo(calendar.months)
+#     return calendar
+#
+#
+# generate_calendar(365, 24)
+# generate_calendar(231, 34)

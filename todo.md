@@ -1,4 +1,4 @@
-# Hexgen TODO
+# Hexgen TODO / Wish List
 
 - calendar
     [x] calendar split into months based on year and day length
@@ -24,25 +24,29 @@
         [ ] wind speed: higher in ocean hexes than land hexes. Proportional to planet atmospheric pressure and average surface temperature
         [ ] wind direction: dependent on prevailing wind pattern
     [ ] calculating wind direction
-        [ ] wind goes from high pressure to low pressure cells
-        [ ] hex wind direction will point towards neighbor with lowest atmospheric pressure
-        [ ] groups of similar pressure are "cells"
+        -  wind goes from high pressure to low pressure cells
+        -  hex wind direction will point towards neighbor with lowest atmospheric pressure
+        -  groups of similar pressure are "cells"
     [ ] calculating hex pressure
-        [ ] higher pressures on Tropic of Cancer (northern) and Tropic of Capricorn (southern) and polar regions
-        [ ] lower pressures on equator and between the tropics
-        [ ] lower pressure in higher elevations
-        [ ] dry air is more dense than moist air
-        [ ] cold air is more dense than warm air
+        - higher pressures on Tropic of Cancer (northern) and Tropic of Capricorn (southern) and polar regions
+        - lower pressures on equator and between the tropics
+        - lower pressure in higher elevations
+        - dry air is more dense than moist air
+        - cold air is more dense than warm air
     [ ] impact on rainfall: (ex: amazon rainforest)
         wind directed from an ocean hex onto a land hex = increase in moisture proportional to the change in elevation between this ocean hex and the land hex 5 hexes away in the same direction.
     [ ] impact on fertility
         wind from a desert area will increase fertility of land it reaches
     [ ] impact on temperature
         wind directed from an ocean hex onto a land hex increases its temperature and that of its inland neighbors proportional to the wind speed and latitude.
+- ocean currents
 
-ocean currents
-
-geography
+- geography
     [ ] detect oceans
     [ ] detect inland seas
     [ ] detect lake systems
+    [ ] detect mountain ranges
+    [ ] detect glaciers
+    [ ] detect peninsulas
+    [ ] detect islands
+    [ ] name all of the above

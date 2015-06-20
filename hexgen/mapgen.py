@@ -8,11 +8,14 @@ from hexgen.territory import Territory
 from hexgen.enums import OceanType, HexResourceType, HexResourceRating, MapType
 from hexgen.heightmap import Heightmap
 from hexgen.grid import Grid
+from hexgen.calendar import Calendar
 
 default_params = {
     "map_type": MapType.terran,
     "surface_pressure": 100,
     "size": 100,
+    "year_length": 365,
+    "day_length": 24,
     "base_temp": 0,
     "avg_temp": 15,
     "sea_percent": 60,
@@ -59,6 +62,9 @@ class MapGen:
         self.heightmap = Heightmap(self.params)
 
         self.hex_grid = Grid(self.heightmap, self.params)
+
+        print("Making calendar")
+        self.calendar = Calendar(self.params.get('year_length'), self.params.get('day_length'))
 
         self.rivers = []
         self.rivers_sources = []
