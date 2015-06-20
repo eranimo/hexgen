@@ -1,14 +1,5 @@
 from enum import Enum
 
-class EdgeDirection(Enum):
-    north = "North"
-    south = "South"
-    north_west = "North West"
-    north_east = "North East"
-    south_west = "South West"
-    south_east = "South East"
-
-
 class Edge:
     def __init__(self, side, one, two, up, down):
         """
@@ -62,3 +53,5 @@ class Edge:
         return other.one == self.two or (self.one == other.one and self.two == other.two)
 
 from hexgen.hex import HexSide
+
+from hexgen.enums import EdgeDirection

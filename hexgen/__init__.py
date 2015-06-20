@@ -44,16 +44,27 @@ def draw_grid(hex_grid):
             return h.resource.get('type').color
         return (100, 100, 100)
 
-    HexGridDraw(hex_grid, color_features, "map_features.png", show_coasts=True, rivers=False)
-    HexGridDraw(hex_grid, color_heightmap, "map_height.png", rivers=False, show_coasts=True)
-    HexGridDraw(hex_grid, color_terrain, "map_terrain.png", rivers=True)
-    HexGridDraw(hex_grid, color_rivers, "map_rivers.png", rivers=True)
-    HexGridDraw(hex_grid, color_temperature, "map_temp.png", rivers=False, show_coasts=True)
-    HexGridDraw(hex_grid, color_biome, "map_biome.png", rivers=False)
-    HexGridDraw(hex_grid, color_territories, "map_territories.png", rivers=False,
-                show_coasts=True, borders=True)
-    HexGridDraw(hex_grid, color_satellite, "map_satellite.png")
-    HexGridDraw(hex_grid, color_resources, "map_resources.png")
+    def color_zone(h):
+        return h.zone.color
+
+    def key_zone(h):
+        return h.zone.map_key
+
+    def hex_latitude(h):
+        return h.latitude
+
+    # HexGridDraw(hex_grid, color_features, "map_features.png", show_coasts=True, rivers=False)
+    # HexGridDraw(hex_grid, color_heightmap, "map_height.png", rivers=False, show_coasts=True)
+    # HexGridDraw(hex_grid, color_terrain, "map_terrain.png", rivers=True)
+    # HexGridDraw(hex_grid, color_rivers, "map_rivers.png", rivers=True)
+    # HexGridDraw(hex_grid, color_temperature, "map_temp.png", rivers=False, show_coasts=True)
+    # HexGridDraw(hex_grid, color_biome, "map_biome.png", rivers=False)
+    # HexGridDraw(hex_grid, color_territories, "map_territories.png", rivers=False,
+    #             show_coasts=True, borders=True)
+    # HexGridDraw(hex_grid, color_satellite, "map_satellite.png")
+    # HexGridDraw(hex_grid, color_resources, "map_resources.png")
+    HexGridDraw(hex_grid, color_zone, "map_zone.png", text_func=key_zone, rivers=False, show_coasts=False)
+    HexGridDraw(hex_grid, color_zone, "map_latitude.png", text_func=hex_latitude, rivers=False, show_coasts=False)
 
     # report on territories
     for t in hex_grid.territories:

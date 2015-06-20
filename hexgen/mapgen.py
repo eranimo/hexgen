@@ -11,6 +11,7 @@ from hexgen.grid import Grid
 
 default_params = {
     "map_type": MapType.terran,
+    "surface_pressure": 100,
     "size": 100,
     "base_temp": 0,
     "avg_temp": 15,
@@ -70,6 +71,7 @@ class MapGen:
             self._generate_rivers()
 
             # give coastal land hexes moisture based on how close to the coast they are
+            # TODO: replace with more realistic model
             print("Making coastal moisture") if self.debug else False
             for y, row in enumerate(self.hex_grid.grid):
                 for x, col in enumerate(row):

@@ -23,3 +23,8 @@ def randomize_color(color, dist=1):
         (color[0] - dist, color[dist] + dist, color[2] - dist)
     ]
     return random.choice(colors)
+
+def latitude_to_number(latitude, map_size):
+    """ Converts latitude in degrees (north is positive, south is negative) to a number
+    corresponding to the latitude grid position """
+    return (map_size / 2) - ((latitude / 90) * (map_size / 2))

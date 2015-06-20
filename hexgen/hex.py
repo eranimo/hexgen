@@ -1,64 +1,10 @@
+import math
 import random
 from enum import Enum
 
 from hexgen.constants import *
-from hexgen.enums import Biome, MapType
-from hexgen.util import blend_colors, lighten, randomize_color
-
-
-class HexType(Enum):
-    land = "Land"       # hex over or at sealevel
-    ocean = "Ocean"     # hex under sealevel
-
-class HexFeature(Enum):
-    """ Each hex can have multiple HexFeatures """
-    lake = "Lake"           # The terminus to a river if it didn't reach sealevel
-    glacier = "Glacier"     # A water hex with a very low surface temperature
-
-    # unused
-    mountain = "Mountain"   # A land hex that has at least two opposite neighboring
-                            #   hexes 15 units lower than this hex
-    volcano = "Volcano"     # Volcano: 1 hex or 2-ring or 3-ring
-    lava_flow = "Lava Flow"
-    crater = "Crater"       # depression of size 2-ring or 3-ring
-    sea = "Sea"
-
-class HexSide(Enum):
-    east = "East"
-    west = "West"
-    north_west = "North West"
-    north_east = "North East"
-    south_west = "South West"
-    south_east = "South East"
-
-    def branching(self, direction):
-        """ Returns the hex sides that fork from this edge direction """
-        if self is HexSide.east or self is HexSide.west:
-            if direction is EdgeDirection.north:
-                return HexSide.south_west, HexSide.south_east
-            else: # elif direction is EdgeDirection.south:
-                return HexSide.north_west, HexSide.north_east
-        elif self is HexSide.south_east:
-            if direction is EdgeDirection.north_east:
-                return HexSide.west, HexSide.south_west
-            else: # elif direction is EdgeDirection.south_west:
-                return HexSide.east, HexSide.north_east
-        elif self is HexSide.south_west:
-            if direction is EdgeDirection.north_west:
-                return HexSide.east, HexSide.south_east
-            else: # elif direction is EdgeDirection.south_east:
-                return HexSide.west, HexSide.north_west
-        elif self is HexSide.north_west:
-            if direction is EdgeDirection.south_west:
-                return HexSide.east, HexSide.north_east
-            else: # elif direction is EdgeDirection.north_east:
-                return HexSide.west, HexSide.south_west
-        elif self is HexSide.north_east:
-            if direction is EdgeDirection.north_west:
-                return HexSide.east, HexSide.south_east
-            else: # elif direction is EdgeDirection.south_east:
-                return HexSide.north_west, HexSide.west
-        raise Exception("Branching invalid, Side: {}, Direction: {}".format(self, direction))
+from hexgen.enums import Biome, MapType, HexType, HexFeature, HexSide, Zones
+from hexgen.util import blend_colors, lighten, randomize_color, latitude_to_number
 
 
 class Hex:
@@ -122,6 +68,15 @@ class Hex:
         return self.territory is not None
 
     @property
+    def pressure(self):
+        """ Returns a season dict that represents the pressure in mPa in summer and winter """
+
+        # return {
+        #     "summer": summer,
+        #     "winter": winter
+        # }
+
+    @property
     def latitude_ratio(self):
         ratio = self.x / self.grid.size
         if ratio < 0.5:
@@ -129,6 +84,44 @@ class Hex:
         else:
             ratio = (1 - ratio) / 0.5
         return ratio
+
+    @property
+    def latitude(self):
+        """ Hex's current Latitude. Negative is south, positive is north """
+        ratio = self.x / self.grid.size
+        if ratio < 0.5: # north
+            return (1 - ratio / 0.5) * 90
+        else: # south
+            return ((ratio ) / 0.5) * -90 + 90
+
+    @property
+    def zone(self):
+        axial_tilt = abs(self.grid.params.get('axial_tilt'))
+
+        # northern polar zone
+        northern_polar_zone = 90 - axial_tilt
+        southern_polar_zone = -(90 - axial_tilt)
+        northern_tropic_zone = axial_tilt
+        southern_tropic_zone = -axial_tilt
+        northern_temperate = axial_tilt + (axial_tilt / 2)
+        southern_temperate = -(axial_tilt + (axial_tilt / 2))
+
+        if northern_polar_zone < self.latitude <= 90:
+            return Zones.arctic_circle
+        elif northern_temperate < self.latitude <= northern_polar_zone:
+            return Zones.northern_temperate
+        elif northern_tropic_zone < self.latitude <= northern_temperate:
+            return Zones.northern_subtropics
+        elif 0 < self.latitude <= northern_tropic_zone:
+            return Zones.northern_tropics
+        elif southern_tropic_zone < self.latitude <= 0:
+            return Zones.southern_tropics
+        elif southern_temperate < self.latitude <= southern_tropic_zone:
+            return Zones.southern_subtropics
+        elif southern_polar_zone < self.latitude <= southern_temperate:
+            return Zones.southern_temperate
+        elif -90 < self.latitude <= southern_polar_zone:
+            return Zones.antarctic_circle
 
     @property
     def temperature(self):
@@ -469,6 +462,7 @@ class Hex:
     def __repr__(self):
         return "<HEX: X: {}, Y: {}, Z: {}>".format(self.x, self.y, self.altitude)
 
+
     @property
     def color_terrain(self):
         altitude = self.altitude
@@ -612,4 +606,9 @@ class Hex:
 
             return process(color)
 
-from hexgen.edge import Edge, EdgeDirection
+    @property
+    def color_pressure(self):
+        """ Returns a season dict representing the map color of the pressure at summer and winter"""
+        return (100, 100, 100)
+
+from hexgen.edge import Edge

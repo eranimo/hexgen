@@ -3,6 +3,8 @@ from hexgen.enums import MapType
 
 options = {
     "map_type": MapType.terran,
+    "surface_pressure": 101,
+    "axial_tilt": -23,
     "size": 100,
     "base_temp": 0,
     "avg_temp": 15,

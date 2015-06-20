@@ -8,12 +8,13 @@ class HexGridDraw:
     """
 
     def __init__(self, grid, color_func, file_name, rivers=True,
-                 numbers=False, show_coasts=False, borders=False):
+                 numbers=False, show_coasts=False, borders=False, text_func=None):
         self.image = Image.new("RGB", (int(HEX_RECT_WIDTH * (grid.hex_grid.size + 0.6)),
                                        int((HEX_RECT_WIDTH) * grid.hex_grid.size)))
         self.draw = ImageDraw.Draw(self.image)
         self.Grid = grid
         self.color_func = color_func
+        self.text_func = text_func
 
         self.numbers = numbers
         self.show_coasts = show_coasts
@@ -121,3 +122,6 @@ class HexGridDraw:
             self.draw.text((cx + 4, cy + 19), str(y), fill=(200, 200, 200))
             self.draw.text((cx + 18, cy + 11), str(h.moisture), fill=(200, 200, 200))
             self.draw.text((cx + 18, cy + 19), str(h.temperature), fill=(200, 200, 200))
+
+        if self.text_func:
+            self.draw.text((cx + 4, cy + 11), str(self.text_func(h)), fill=(200, 200, 200))
