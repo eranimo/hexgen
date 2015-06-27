@@ -12,7 +12,7 @@ from hexgen.calendar import Calendar
 
 default_params = {
     "map_type": MapType.terran,
-    "surface_pressure": 100,
+    "surface_pressure": 1013.25,
     "size": 100,
     "year_length": 365,
     "day_length": 24,

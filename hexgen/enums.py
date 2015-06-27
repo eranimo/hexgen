@@ -90,6 +90,14 @@ class Biome(SuperEnum):
     volcanic_molten_river = (19, 'mo', "Lavaflow", (207, 10, 10), 0, (207, 10, 10))
     volcanic_solid = (20, 'so', "Basaltic Plains", (40, 28, 25), 0)
 
+    # ocean biomes?
+    # estuary
+    # coral reef
+    # deep ocean
+    # inland sea
+    # mediterranean
+    # arctic_ocean
+
 
 class OceanType(SuperEnum):
     __keys__ = ['id', 'title']

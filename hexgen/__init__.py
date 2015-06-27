@@ -53,18 +53,32 @@ def draw_grid(hex_grid):
     def hex_latitude(h):
         return h.latitude
 
+    def color_pressure_summer(h):
+        return h.color_pressure.get('summer')
+
+    def color_pressure_winter(h):
+        return h.color_pressure.get('winter')
+
+    def pressure_number_summer(h):
+        return h.pressure.summer
+
+    def pressure_number_winter(h):
+        return h.pressure.winter
+
     # HexGridDraw(hex_grid, color_features, "map_features.png", show_coasts=True, rivers=False)
-    # HexGridDraw(hex_grid, color_heightmap, "map_height.png", rivers=False, show_coasts=True)
+    HexGridDraw(hex_grid, color_heightmap, "map_height.png", rivers=False, show_coasts=True)
     # HexGridDraw(hex_grid, color_terrain, "map_terrain.png", rivers=True)
-    # HexGridDraw(hex_grid, color_rivers, "map_rivers.png", rivers=True)
-    # HexGridDraw(hex_grid, color_temperature, "map_temp.png", rivers=False, show_coasts=True)
-    # HexGridDraw(hex_grid, color_biome, "map_biome.png", rivers=False)
+    HexGridDraw(hex_grid, color_rivers, "map_rivers.png", rivers=True)
+    HexGridDraw(hex_grid, color_temperature, "map_temp.png", rivers=False, show_coasts=True)
+    HexGridDraw(hex_grid, color_biome, "map_biome.png", rivers=False)
     # HexGridDraw(hex_grid, color_territories, "map_territories.png", rivers=False,
     #             show_coasts=True, borders=True)
     # HexGridDraw(hex_grid, color_satellite, "map_satellite.png")
     # HexGridDraw(hex_grid, color_resources, "map_resources.png")
-    HexGridDraw(hex_grid, color_zone, "map_zone.png", text_func=key_zone, rivers=False, show_coasts=False)
-    HexGridDraw(hex_grid, color_zone, "map_latitude.png", text_func=hex_latitude, rivers=False, show_coasts=False)
+    # HexGridDraw(hex_grid, color_zone, "map_zone.png", text_func=key_zone, rivers=False, show_coasts=False)
+    # HexGridDraw(hex_grid, color_zone, "map_latitude.png", text_func=hex_latitude, rivers=False, show_coasts=False)
+    HexGridDraw(hex_grid, color_pressure_summer, "map_pressure_summer.png", text_func=pressure_number_summer, rivers=False, show_coasts=False)
+    HexGridDraw(hex_grid, color_pressure_winter, "map_pressure_winter.png", text_func=pressure_number_winter, rivers=False, show_coasts=False)
 
     # report on territories
     for t in hex_grid.territories:

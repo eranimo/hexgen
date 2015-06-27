@@ -124,4 +124,4 @@ class HexGridDraw:
             self.draw.text((cx + 18, cy + 19), str(h.temperature), fill=(200, 200, 200))
 
         if self.text_func:
-            self.draw.text((cx + 4, cy + 11), str(self.text_func(h)), fill=(200, 200, 200))
+            self.draw.text((cx, cy + 5), str(self.text_func(h)), fill=(200, 200, 200))
