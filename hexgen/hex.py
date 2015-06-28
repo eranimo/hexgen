@@ -5,7 +5,6 @@ from enum import Enum
 from hexgen.constants import *
 from hexgen.enums import Biome, MapType, HexType, HexFeature, HexSide, Zones
 from hexgen.util import blend_colors, lighten, randomize_color, latitude_to_number
-from hexgen.seasons import SeasonalValue
 
 class Hex:
     def __init__(self, grid, x, y, altitude):
@@ -78,32 +77,34 @@ class Hex:
         # create base pressure changes not accounting for land
 
         # base pressure differences between the different pressure belts
+        # TODO: add variable here to make more volitile weather
+        # TODO: have this variable depend on axial tilt
         pressure_dif = random.randint(8, 12)
 
-        # ±10 degrees = ITCZ (low pressure)
-        # ±25 to ±35 degrees = STHZ (high pressure)
-        # ±55 to ±65 degrees = PF (low pressure)
+        # ±10 degrees         (centered on 0 degrees)   = ITCZ (low pressure)
+        # ±20 to ±40 degrees  (centered on ±30 degrees) = STHZ (high pressure)
+        # ±40 to ±80 degrees  (centered on ±60 degrees) = PF (low pressure)
 
         if -10 <= self.latitude <= 10: # ITCZ
             # highest around 0 degrees
-            final_pressure = base_pressure - (-math.exp(self.latitude, 2) + 100) * (pressure_dif / 100)
-        elif -25 <= self.latitude <= -35: # southern STHZ
+            final_pressure = base_pressure - (-math.pow(self.latitude, 2) + 100) * (pressure_dif / 100)
+        elif -40 <= self.latitude <= -20: # southern STHZ
             # highest around -30 degrees
-            final_pressure = base_pressure + ((-math.exp(self.latitude + 30, 2) + 25) / 25) * pressure_dif
-        elif 25 <= self.latitude <= 35: # northern STHZ
+            final_pressure = base_pressure + ((-math.pow(self.latitude + 30, 2) + 100) / 100) * pressure_dif
+        elif 20 <= self.latitude <= 40: # northern STHZ
             # highest around 30 degrees
-            final_pressure = base_pressure + ((-math.exp(self.latitude - 30, 2) + 25) / 25) * pressure_dif
-        elif -55 <= self.latitude <= -65: # southern PF
+            final_pressure = base_pressure + ((-math.pow(self.latitude - 30, 2) + 100) / 100) * pressure_dif
+        elif -70 <= self.latitude <= -50: # southern PF
             # highest around -60 degrees
-            final_pressure = base_pressure - ((-math.exp(self.latitude + 60, 2) + 25) / 25) * pressure_dif
-        elif 55 <= self.latitude <= 65:
+            final_pressure = base_pressure - ((-math.pow(self.latitude + 60, 2) + 100) / 100) * pressure_dif
+        elif 50 <= self.latitude <= 70: # northern PF
             # highest around 60 degrees
-            final_pressure = base_pressure + ((-math.exp(self.latitude - 60, 2) + 25) / 25) * pressure_dif
+            final_pressure = base_pressure - ((-math.pow(self.latitude - 60, 2) + 100) / 100) * pressure_dif
         else:
-            return base_pressure
+            final_pressure = base_pressure
         # add effects of land
 
-        return SeasonalValue(final_pressure, final_pressure)
+        return (final_pressure, final_pressure)
 
     @property
     def latitude_ratio(self):
@@ -638,12 +639,8 @@ class Hex:
     @property
     def color_pressure(self):
         """ Returns a season dict representing the map color of the pressure at summer and winter"""
-
-        summer = round((self.pressure.summer - self.grid.params.get('surface_pressure'))) * 5
-        winter = round((self.pressure.winter - self.grid.params.get('surface_pressure'))) * 5
-        return {
-            "summer": (100 + summer, 100, 100),
-            "winter": (100 + winter, 100, 100)
-        }
+        end_year = round((self.pressure[0] - self.grid.params.get('surface_pressure'))) * 5
+        mid_year = round((self.pressure[1] - self.grid.params.get('surface_pressure'))) * 5
+        return ((100 + end_year, 100, 100), (100 + mid_year, 100, 100))
 
 from hexgen.edge import Edge

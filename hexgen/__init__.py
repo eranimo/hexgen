@@ -54,16 +54,16 @@ def draw_grid(hex_grid):
         return h.latitude
 
     def color_pressure_summer(h):
-        return h.color_pressure.get('summer')
+        return h.color_pressure[1]
 
     def color_pressure_winter(h):
-        return h.color_pressure.get('winter')
+        return h.color_pressure[0]
 
-    def pressure_number_summer(h):
-        return h.pressure.summer
+    def pressure_number_end_year(h):
+        return h.pressure[0]
 
-    def pressure_number_winter(h):
-        return h.pressure.winter
+    def pressure_number_mid_year(h):
+        return h.pressure[1]
 
     # HexGridDraw(hex_grid, color_features, "map_features.png", show_coasts=True, rivers=False)
     HexGridDraw(hex_grid, color_heightmap, "map_height.png", rivers=False, show_coasts=True)
@@ -77,8 +77,8 @@ def draw_grid(hex_grid):
     # HexGridDraw(hex_grid, color_resources, "map_resources.png")
     # HexGridDraw(hex_grid, color_zone, "map_zone.png", text_func=key_zone, rivers=False, show_coasts=False)
     # HexGridDraw(hex_grid, color_zone, "map_latitude.png", text_func=hex_latitude, rivers=False, show_coasts=False)
-    HexGridDraw(hex_grid, color_pressure_summer, "map_pressure_summer.png", text_func=pressure_number_summer, rivers=False, show_coasts=False)
-    HexGridDraw(hex_grid, color_pressure_winter, "map_pressure_winter.png", text_func=pressure_number_winter, rivers=False, show_coasts=False)
+    HexGridDraw(hex_grid, color_pressure_summer, "map_pressure_end_year.png", text_func=pressure_number_end_year, rivers=False, show_coasts=True)
+    HexGridDraw(hex_grid, color_pressure_winter, "map_pressure_mid_year.png", text_func=pressure_number_mid_year, rivers=False, show_coasts=True)
 
     # report on territories
     for t in hex_grid.territories:
