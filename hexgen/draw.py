@@ -1,5 +1,5 @@
 from hexgen.hex import HexSide
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 from hexgen.constants import SIDE_LENGTH, HEX_HEIGHT, HEX_RADIUS, HEX_RECT_HEIGHT, HEX_RECT_WIDTH
 
 class HexGridDraw:
@@ -124,4 +124,5 @@ class HexGridDraw:
             self.draw.text((cx + 18, cy + 19), str(h.temperature), fill=(200, 200, 200))
 
         if self.text_func:
-            self.draw.text((cx, cy + 5), str(self.text_func(h)), fill=(200, 200, 200))
+            font = ImageFont.truetype("FreeSans.ttf", 14)
+            self.draw.text((cx + 5, cy + 5), str(self.text_func(h)), fill=(200, 200, 200), font=font)

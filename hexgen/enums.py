@@ -144,13 +144,13 @@ class HexResourceType(SuperEnum):
 
 
 class HexEdge(SuperEnum):
-    __keys__ = ['id', 'title']
-    east       = (1, 'East')
-    north_east = (2, 'North East')
-    north_west = (3, 'North West')
-    west       = (4, 'West')
-    south_west = (5, 'South West')
-    south_east = (6, 'South East')
+    __keys__ = ['id', 'title', 'short', 'arrow']
+    east       = (1, 'East', "E", "→")
+    north_east = (2, 'North East', "NE", "↗")
+    north_west = (3, 'North West', "NW", "↖")
+    west       = (4, 'West', "W", "←")
+    south_west = (5, 'South West', "SW", "↙")
+    south_east = (6, 'South East', "SE", "↘")
 
 
 class MapType(SuperEnum):
@@ -239,3 +239,15 @@ class Zones(SuperEnum):
     southern_subtropics = (6, 'Southern Subtropics', (150, 250, 200), 'E')
     southern_temperate  = (7, 'Southern Temperate', (150, 250, 150), 'F')
     antarctic_circle    = (8, "Antarctic Circle", (150, 150, 250), 'S')
+
+
+class Hemisphere(Enum):
+    northern = "Northern"
+    southern = "Southern"
+
+
+class Season(Enum):
+    winter = "Winter"
+    spring = "Spring"
+    summer = "Summer"
+    autumn = "Autumn"

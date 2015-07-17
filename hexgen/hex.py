@@ -3,8 +3,8 @@ import random
 from enum import Enum
 
 from hexgen.constants import *
-from hexgen.enums import Biome, MapType, HexType, HexFeature, HexSide, Zones
-from hexgen.util import blend_colors, lighten, randomize_color, latitude_to_number
+from hexgen.enums import Biome, MapType, HexType, HexFeature, HexSide, Zones, Hemisphere, HexEdge
+from hexgen.util import blend_colors, lighten, randomize_color, pressure_at_seasons, decide_wind
 
 class Hex:
     def __init__(self, grid, x, y, altitude):
@@ -72,39 +72,68 @@ class Hex:
         Returns a season dict that represents the pressure in mPa in summer and winter.
         This function should not be random, but instead be determined by other hex values.
         """
-        base_pressure = self.grid.params.get('surface_pressure')
+        world_pressure = self.grid.params.get('surface_pressure')
 
         # create base pressure changes not accounting for land
 
         # base pressure differences between the different pressure belts
         # TODO: add variable here to make more volitile weather
         # TODO: have this variable depend on axial tilt
-        pressure_dif = random.randint(8, 12)
+        pressure_diff = random.randint(6, 10)
 
         # ±10 degrees         (centered on 0 degrees)   = ITCZ (low pressure)
         # ±20 to ±40 degrees  (centered on ±30 degrees) = STHZ (high pressure)
         # ±40 to ±80 degrees  (centered on ±60 degrees) = PF (low pressure)
 
-        if -10 <= self.latitude <= 10: # ITCZ
-            # highest around 0 degrees
-            final_pressure = base_pressure - (-math.pow(self.latitude, 2) + 100) * (pressure_dif / 100)
-        elif -40 <= self.latitude <= -20: # southern STHZ
-            # highest around -30 degrees
-            final_pressure = base_pressure + ((-math.pow(self.latitude + 30, 2) + 100) / 100) * pressure_dif
-        elif 20 <= self.latitude <= 40: # northern STHZ
-            # highest around 30 degrees
-            final_pressure = base_pressure + ((-math.pow(self.latitude - 30, 2) + 100) / 100) * pressure_dif
-        elif -70 <= self.latitude <= -50: # southern PF
-            # highest around -60 degrees
-            final_pressure = base_pressure - ((-math.pow(self.latitude + 60, 2) + 100) / 100) * pressure_dif
-        elif 50 <= self.latitude <= 70: # northern PF
-            # highest around 60 degrees
-            final_pressure = base_pressure - ((-math.pow(self.latitude - 60, 2) + 100) / 100) * pressure_dif
+        # end_year is winter, mid_year is summer
+        if self.is_land:
+            max_shift = round(self.distance / 2)
+            end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
+            mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
+            base_pressure = (end_year, mid_year)
         else:
-            final_pressure = base_pressure
-        # add effects of land
+            max_shift = min(6, 0.005 * round(self.grid.sealevel - self.latitude))
+            end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
+            mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
+            base_pressure = (end_year, mid_year)
 
-        return (final_pressure, final_pressure)
+
+        # add effects of land and water
+        if self.is_land:
+            if self.hemisphere is Hemisphere.northern:
+                # winter
+                end_year = base_pressure[0] + min(15, round(self.distance * 0.5) )
+
+                # summer
+                mid_year = base_pressure[1] - min(15, round(self.distance * 0.5) )
+            elif self.hemisphere is Hemisphere.southern:
+                # summer
+                end_year = base_pressure[0] - min(15, round(self.distance * 0.5) )
+
+                # winter
+                mid_year = base_pressure[1] + min(15, round(self.distance * 0.5) )
+
+        return (end_year, mid_year)
+
+    @property
+    def wind(self):
+        """
+        Wind consists of a HexEdge direction and a magnitude that is equal to the difference in pressure
+        Wind direction is always to the neighbor with the lowest pressure,
+        deflected by the following rules:
+
+        Northern Hemisphere:
+            high pressure areas: clockwise
+            low pressure areas: counter-clockwise
+        Southern Hemisphere:
+            high pressure areas: counter-clockwise
+            low pressure areas: clockwise
+        """
+        world_pressure = self.grid.params.get('surface_pressure')
+        return (
+            decide_wind(0, world_pressure, self),
+            decide_wind(1, world_pressure, self)
+        )
 
     @property
     def latitude_ratio(self):
@@ -114,6 +143,12 @@ class Hex:
         else:
             ratio = (1 - ratio) / 0.5
         return ratio
+
+    @property
+    def hemisphere(self):
+        if self.x <= round(self.grid.size / 2):
+            return Hemisphere.northern
+        return Hemisphere.southern
 
     @property
     def latitude(self):
@@ -351,6 +386,22 @@ class Hex:
             else:
                 return self.grid.find_hex(self.x + 1, self.y + 1)
 
+    def neighbor_at(self, direction):
+        """ Given a HexEdge, find the hex on the other side of this edge """
+        if direction is HexEdge.east:
+            return self.hex_east
+        elif direction is HexEdge.south_east:
+            return self.hex_south_east
+        elif direction is HexEdge.south_west:
+            return self.hex_south_west
+        elif direction is HexEdge.west:
+            return self.hex_west
+        elif direction is HexEdge.north_west:
+            return self.hex_north_west
+        elif direction is HexEdge.north_east:
+            return self.hex_north_east
+        raise Exception("No such direction")
+
     @property
     def surrounding(self):
         """
@@ -359,6 +410,18 @@ class Hex:
         """
         return [self.hex_east, self.hex_south_east, self.hex_south_west,
                 self.hex_west, self.hex_north_west, self.hex_north_east]
+
+    @property
+    def neighbors(self):
+        """ Surrounding hexes with HexEdge enums """
+        return [
+            (HexEdge.east, self.hex_east),
+            (HexEdge.south_east, self.hex_south_east),
+            (HexEdge.south_west, self.hex_south_west),
+            (HexEdge.west, self.hex_west),
+            (HexEdge.north_west, self.hex_north_west),
+            (HexEdge.north_east, self.hex_north_east),
+        ]
 
     def bubble(self, distance=1):
         """
