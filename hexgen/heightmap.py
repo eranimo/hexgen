@@ -23,7 +23,8 @@ class Heightmap:
             m.append(max(g))
             avg.append(sum(g) / float(len(g)))
 
-        self.top_height = max(m)
+        self.highest_height = max(m)
+        self.lowest_height = min(m)
         self.average_height = sum(avg) / float(len(avg))
         sea_percent = params.get('sea_percent')
         self.sealevel = round(self.average_height * (sea_percent * 2 / 100))

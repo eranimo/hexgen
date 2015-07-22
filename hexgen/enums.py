@@ -229,16 +229,16 @@ class HexSide(Enum):
 
 
 class Zones(SuperEnum):
-    __keys__ = ['id', 'title', 'color', 'map_key']
+    __keys__ = ['id', 'title', 'color', 'map_key', 'incr']
 
-    arctic_circle       = (1, 'Artic Circle', (150, 150, 250), 'N')
-    northern_temperate   = (2, 'Northern Temperate', (150, 250, 150), 'A')
-    northern_subtropics = (3, 'Nothern Subtropics', (150, 250, 200), 'B')
-    northern_tropics    = (4, 'Northern Tropics', (230, 150, 150), 'C')
-    southern_tropics    = (5, 'Southern Tropics', (250, 180, 150), 'D')
-    southern_subtropics = (6, 'Southern Subtropics', (150, 250, 200), 'E')
-    southern_temperate  = (7, 'Southern Temperate', (150, 250, 150), 'F')
-    antarctic_circle    = (8, "Antarctic Circle", (150, 150, 250), 'S')
+    arctic_circle       = (1, 'Artic Circle', (150, 150, 250),        'N', 0.60)
+    northern_temperate   = (2, 'Northern Temperate', (150, 250, 150), 'A', 0.90)
+    northern_subtropics = (3, 'Nothern Subtropics', (150, 250, 200),  'B', 0.60)
+    northern_tropics    = (4, 'Northern Tropics', (230, 150, 150),    'C', 0.30)
+    southern_tropics    = (5, 'Southern Tropics', (250, 180, 150),    'D', 0.30)
+    southern_subtropics = (6, 'Southern Subtropics', (150, 250, 200), 'E', 0.60)
+    southern_temperate  = (7, 'Southern Temperate', (150, 250, 150),  'F', 0.90)
+    antarctic_circle    = (8, "Antarctic Circle", (150, 150, 250),    'S', 0.60)
 
 
 class Hemisphere(Enum):

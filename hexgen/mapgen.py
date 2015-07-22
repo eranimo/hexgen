@@ -5,10 +5,11 @@ sys.setrecursionlimit(1500)
 
 from hexgen.constants import *
 from hexgen.territory import Territory
-from hexgen.enums import OceanType, HexResourceType, HexResourceRating, MapType
+from hexgen.enums import OceanType, HexResourceType, HexResourceRating, MapType, Hemisphere
 from hexgen.heightmap import Heightmap
 from hexgen.grid import Grid
 from hexgen.calendar import Calendar
+from hexgen.util import decide_wind, pressure_at_seasons
 
 default_params = {
     "map_type": MapType.terran,
@@ -62,6 +63,10 @@ class MapGen:
         self.heightmap = Heightmap(self.params)
 
         self.hex_grid = Grid(self.heightmap, self.params)
+        if self.debug is True:
+            print("Average Height: {}".format(self.hex_grid.average_height))
+            print("Highest Height: {}".format(self.hex_grid.highest_height))
+            print("Lowest Height: {}".format(self.hex_grid.lowest_height))
 
         print("Making calendar")
         self.calendar = Calendar(self.params.get('year_length'), self.params.get('day_length'))
@@ -71,6 +76,8 @@ class MapGen:
 
         print("Computing hex distances") if self.debug else False
         self._get_distances()
+
+        self._generate_pressure()
 
 
         if self.params.get('hydrosphere'):
@@ -420,6 +427,91 @@ class MapGen:
                     numbers.append(count)
 
                     h.distance = min(numbers)
+
+    def _generate_pressure(self):
+        print("Generating pressure") if self.debug else False
+
+        base_pressure = self.hex_grid.params.get('surface_pressure')
+
+        # calcualte pressure caused by pressure zones
+        pressure_diff = random.randint(3, 5)
+        for y, row in enumerate(self.hex_grid.grid):
+            for x, col in enumerate(row):
+                h = self.hex_grid.grid[x][y]
+
+                # end_year is winter, mid_year is summer
+                if h.is_land:
+                    max_shift = round(h.distance / 2)
+                    end_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, -max_shift)
+                    mid_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, max_shift)
+                else:
+                    max_shift = min(6, 0.005 * round(self.hex_grid.sealevel - h.latitude))
+                    end_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, -max_shift)
+                    mid_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, max_shift)
+                h.pressure = (end_year, mid_year)
+
+        # sort all hexes by land and water, lowest to highest
+        land_hexes = [h for h in self.hex_grid.hexes if h.is_land]
+        water_hexes = [h for h in self.hex_grid.hexes if not h.is_land]
+        land_hexes.sort(key=lambda x: x.altitude, reverse=True)
+        water_hexes.sort(key=lambda x: x.altitude)
+
+        def decide_change(h, incr):
+            if h.is_land:
+                if h.hemisphere is Hemisphere.northern:
+                    # winter / increase
+                    # summer / decrease
+                    return (h.pressure[0] + incr, h.pressure[1] - incr)
+                elif h.hemisphere is Hemisphere.southern:
+                    # winter / decrease
+                    # summer / increase
+                    return (h.pressure[0] - incr, h.pressure[1] + incr)
+            else:
+                if h.hemisphere is Hemisphere.northern:
+                    # winter / decrease
+                    # summer / increase
+                    return (h.pressure[0] - incr, h.pressure[1] + incr)
+                elif h.hemisphere is Hemisphere.southern:
+                    # winter / increase
+                    # summer / decrease
+                    return (h.pressure[0] + incr, h.pressure[1] - incr)
+                # return (h.pressure[0], h.pressure[1])
+
+        def brush(percent, incr):
+            matching_land_hexes = land_hexes[0:round(len(land_hexes) * percent)]
+            matching_water_hexes = water_hexes[0:round(len(water_hexes) * percent)]
+
+            for h in matching_land_hexes:
+                for h in h.bubble(3):
+                    h.pressure = decide_change(h, incr * h.zone.incr)
+            for h in matching_water_hexes:
+                for h in h.bubble(3):
+                    h.pressure = decide_change(h, incr * h.zone.incr)
+
+        brush(0.80, 0.05)
+        brush(0.30, 0.10)
+        brush(0.10, 0.10)
+
+        # decide wind directions
+        # Wind consists of a HexEdge direction and a magnitude that is equal to the difference in pressure
+        # Wind direction is always to the neighbor with the lowest pressure,
+        # deflected by the following rules:
+        # Northern Hemisphere:
+        #     high pressure areas: clockwise
+        #     low pressure areas: counter-clockwise
+        # Southern Hemisphere:
+        #     high pressure areas: counter-clockwise
+        #     low pressure areas: clockwise
+        print("Generating wind") if self.debug else False
+        for y, row in enumerate(self.hex_grid.grid):
+            for x, col in enumerate(row):
+                h = self.hex_grid.grid[x][y]
+                h.wind = (
+                    decide_wind(0, base_pressure, h),
+                    decide_wind(1, base_pressure, h)
+                )
+
+
 
     def _generate_rivers(self):
         """

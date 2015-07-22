@@ -20,7 +20,7 @@ class Hex:
         self.edge_north_west = None
         self.edge_south_west = None
 
-        self.distance = 0
+        self.distance = 0 # distance in hexes to the coast. 0 if no coast
         self.moisture = 0
 
         self.territory = None
@@ -31,6 +31,10 @@ class Hex:
         self.features = set()
 
         self.resource = None
+
+        world_pressure = self.grid.params.get('surface_pressure')
+        self.pressure = (world_pressure, world_pressure)
+        self.wind = None
 
         # instance of a sea
         self.sea = None
@@ -66,74 +70,74 @@ class Hex:
     def is_owned(self):
         return self.territory is not None
 
-    @property
-    def pressure(self):
-        """
-        Returns a season dict that represents the pressure in mPa in summer and winter.
-        This function should not be random, but instead be determined by other hex values.
-        """
-        world_pressure = self.grid.params.get('surface_pressure')
+    # @property
+    # def pressure(self):
+    #     """
+    #     Returns a season dict that represents the pressure in mPa in summer and winter.
+    #     This function should not be random, but instead be determined by other hex values.
+    #     """
+    #     world_pressure = self.grid.params.get('surface_pressure')
+    #
+    #     # create base pressure changes not accounting for land
+    #
+    #     # base pressure differences between the different pressure belts
+    #     # TODO: add variable here to make more volitile weather
+    #     # TODO: have this variable depend on axial tilt
+    #     pressure_diff = random.randint(6, 10)
+    #
+    #     # ±10 degrees         (centered on 0 degrees)   = ITCZ (low pressure)
+    #     # ±20 to ±40 degrees  (centered on ±30 degrees) = STHZ (high pressure)
+    #     # ±40 to ±80 degrees  (centered on ±60 degrees) = PF (low pressure)
+    #
+    #     # end_year is winter, mid_year is summer
+    #     if self.is_land:
+    #         max_shift = round(self.distance / 2)
+    #         end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
+    #         mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
+    #         base_pressure = (end_year, mid_year)
+    #     else:
+    #         max_shift = min(6, 0.005 * round(self.grid.sealevel - self.latitude))
+    #         end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
+    #         mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
+    #         base_pressure = (end_year, mid_year)
+    #
+    #
+    #     # add effects of land and water
+    #     if self.is_land:
+    #         if self.hemisphere is Hemisphere.northern:
+    #             # winter
+    #             end_year = base_pressure[0] + min(15, round(self.distance * 0.5) )
+    #
+    #             # summer
+    #             mid_year = base_pressure[1] - min(15, round(self.distance * 0.5) )
+    #         elif self.hemisphere is Hemisphere.southern:
+    #             # summer
+    #             end_year = base_pressure[0] - min(15, round(self.distance * 0.5) )
+    #
+    #             # winter
+    #             mid_year = base_pressure[1] + min(15, round(self.distance * 0.5) )
+    #
+    #     return (end_year, mid_year)
 
-        # create base pressure changes not accounting for land
-
-        # base pressure differences between the different pressure belts
-        # TODO: add variable here to make more volitile weather
-        # TODO: have this variable depend on axial tilt
-        pressure_diff = random.randint(6, 10)
-
-        # ±10 degrees         (centered on 0 degrees)   = ITCZ (low pressure)
-        # ±20 to ±40 degrees  (centered on ±30 degrees) = STHZ (high pressure)
-        # ±40 to ±80 degrees  (centered on ±60 degrees) = PF (low pressure)
-
-        # end_year is winter, mid_year is summer
-        if self.is_land:
-            max_shift = round(self.distance / 2)
-            end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
-            mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
-            base_pressure = (end_year, mid_year)
-        else:
-            max_shift = min(6, 0.005 * round(self.grid.sealevel - self.latitude))
-            end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
-            mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
-            base_pressure = (end_year, mid_year)
-
-
-        # add effects of land and water
-        if self.is_land:
-            if self.hemisphere is Hemisphere.northern:
-                # winter
-                end_year = base_pressure[0] + min(15, round(self.distance * 0.5) )
-
-                # summer
-                mid_year = base_pressure[1] - min(15, round(self.distance * 0.5) )
-            elif self.hemisphere is Hemisphere.southern:
-                # summer
-                end_year = base_pressure[0] - min(15, round(self.distance * 0.5) )
-
-                # winter
-                mid_year = base_pressure[1] + min(15, round(self.distance * 0.5) )
-
-        return (end_year, mid_year)
-
-    @property
-    def wind(self):
-        """
-        Wind consists of a HexEdge direction and a magnitude that is equal to the difference in pressure
-        Wind direction is always to the neighbor with the lowest pressure,
-        deflected by the following rules:
-
-        Northern Hemisphere:
-            high pressure areas: clockwise
-            low pressure areas: counter-clockwise
-        Southern Hemisphere:
-            high pressure areas: counter-clockwise
-            low pressure areas: clockwise
-        """
-        world_pressure = self.grid.params.get('surface_pressure')
-        return (
-            decide_wind(0, world_pressure, self),
-            decide_wind(1, world_pressure, self)
-        )
+    # @property
+    # def wind(self):
+    #     """
+    #     Wind consists of a HexEdge direction and a magnitude that is equal to the difference in pressure
+    #     Wind direction is always to the neighbor with the lowest pressure,
+    #     deflected by the following rules:
+    #
+    #     Northern Hemisphere:
+    #         high pressure areas: clockwise
+    #         low pressure areas: counter-clockwise
+    #     Southern Hemisphere:
+    #         high pressure areas: counter-clockwise
+    #         low pressure areas: clockwise
+    #     """
+    #     world_pressure = self.grid.params.get('surface_pressure')
+    #     return (
+    #         decide_wind(0, world_pressure, self),
+    #         decide_wind(1, world_pressure, self)
+    #     )
 
     @property
     def latitude_ratio(self):

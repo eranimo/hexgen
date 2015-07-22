@@ -61,8 +61,9 @@ class HexGridDraw:
                         elif s is HexSide.north_west:
                             self.draw.line([pointer_5, origin], river_blue, width=3)
 
-        print("Making ", file_name)
+        print("Making ", file_name, end="")
         self.image.save('bin/' + file_name)
+        print("\tdone")
 
     def draw_hex_edge(self, x, y, side, width=3, color=(0, 0, 0)):
         s = side

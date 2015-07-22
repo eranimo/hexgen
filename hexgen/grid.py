@@ -12,6 +12,8 @@ class Grid:
         self.sealevel = heightmap.sealevel
         self.params = params
         self.average_height = heightmap.average_height
+        self.highest_height = heightmap.highest_height
+        self.lowest_height = heightmap.lowest_height
 
         self.avg_altitude = 0
 
