@@ -1,6 +1,6 @@
 import math
 import random
-
+import numpy as np
 
 class Heightmap:
 
@@ -9,7 +9,7 @@ class Heightmap:
 
         # start making the heightmap
         self.size = params.get('size')
-        self.grid = [[0 for x in range(0, self.size)] for x in range(0, self.size)]
+        self.grid = np.zeros((self.size, self.size))
         self.grid[0][0] = random.randint(0, 255)
         self.grid[self.size - 1][0] = random.randint(0, 255)
         self.grid[0][self.size - 1] = random.randint(0, 255)

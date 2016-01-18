@@ -1,5 +1,6 @@
 import math
 import random
+import time
 
 from hexgen.enums import HexEdge, Hemisphere
 
@@ -95,6 +96,14 @@ def decide_wind(season_index, world_pressure, hexagon):
     lowest_neighbor = min(hexagon.neighbors, key=lambda h: h[1].pressure[season_index])
     wind_direction = lowest_neighbor[0]
 
+    neighbor = hexagon.neighbor_at(wind_direction)
+    if neighbor.pressure[season_index] == hexagon.pressure[season_index]:
+        return {
+            "direction": None,
+            "windward_hex": neighbor,
+            "pressure_diff": 0
+        }
+
     if hexagon.hemisphere is Hemisphere.northern:
         if hexagon.pressure[season_index] <= world_pressure: # low pressure
             corrected_wind_direction = clockwise_hex_edge(wind_direction, True)
@@ -114,3 +123,23 @@ def decide_wind(season_index, world_pressure, hexagon):
         "windward_hex": windward_hex,
         "pressure_diff": pressure_diff
     }
+
+
+class Timer:
+    def __init__(self, text, debug=True):
+        self.text = text
+        self.debug = debug
+
+    def __enter__(self):
+        if self.debug:
+            print(self.text.ljust(50), end="")
+            print('starting...')
+        self.start = time.clock()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.clock()
+        self.interval = self.end - self.start
+        if self.debug:
+            print(self.text.ljust(50), end="")
+            print("finished after {:0.03f} ms\n".format(self.interval * 1000))

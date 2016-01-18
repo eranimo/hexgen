@@ -167,6 +167,22 @@ class HexType(Enum):
     land = "Land"       # hex over or at sealevel
     ocean = "Ocean"     # hex under sealevel
 
+class HexSurface(SuperEnum):
+    """ needed for temperature calculations """
+    __keys__ = ['id', 'specific_heat', 'albedo']
+    water_fresh = (1, 1.00, 0.0) # water without salt
+    water_sea   = (2, 0.94, 0.0) # water with salt
+    granite     = (3, 0.19, 0.0) # continental crust in volcanically active planets
+    basalt      = (4, 0.20, 0.0) # volcanic basaltic rock
+    soil_wet    = (5, 0.35, 0.0) # soil with organic materials
+    soil_dry    = (6, 0.19, 0.0) # desert soil
+    soil_barren = (7, 0.10, 0.0) # barren soil
+    ice_warm    = (8, 0.50, 0.0) # ice warmer than -10 degrees F
+    ice_cold    = (9, 0.40, 0.0) # ice warmer than -100 deg F to -10 deg F
+
+
+
+
 class HexFeature(Enum):
     """ Each hex can have multiple HexFeatures """
     lake = "Lake"           # The terminus to a river if it didn't reach sealevel

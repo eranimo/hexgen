@@ -1,3 +1,5 @@
+import copy
+import simplejson as json
 import math
 import random
 import sys
@@ -9,7 +11,7 @@ from hexgen.enums import OceanType, HexResourceType, HexResourceRating, MapType,
 from hexgen.heightmap import Heightmap
 from hexgen.grid import Grid
 from hexgen.calendar import Calendar
-from hexgen.util import decide_wind, pressure_at_seasons
+from hexgen.util import decide_wind, pressure_at_seasons, Timer
 
 default_params = {
     "map_type": MapType.terran,
@@ -60,13 +62,14 @@ class MapGen:
         if type(params.get('random_seed')) is int:
             random.seed(params.get('random_seed'))
 
-        self.heightmap = Heightmap(self.params)
+        with Timer("Building Heightmap", self.debug):
+            self.heightmap = Heightmap(self.params, self.debug)
 
         self.hex_grid = Grid(self.heightmap, self.params)
         if self.debug is True:
-            print("Average Height: {}".format(self.hex_grid.average_height))
-            print("Highest Height: {}".format(self.hex_grid.highest_height))
-            print("Lowest Height: {}".format(self.hex_grid.lowest_height))
+            print("\tAverage Height: {}".format(self.hex_grid.average_height))
+            print("\tHighest Height: {}".format(self.hex_grid.highest_height))
+            print("\tLowest Height: {}".format(self.hex_grid.lowest_height))
 
         print("Making calendar")
         self.calendar = Calendar(self.params.get('year_length'), self.params.get('day_length'))
@@ -74,8 +77,8 @@ class MapGen:
         self.rivers = []
         self.rivers_sources = []
 
-        print("Computing hex distances") if self.debug else False
-        self._get_distances()
+        with Timer("Computing hex distances", self.debug):
+            self._get_distances()
 
         self._generate_pressure()
 
@@ -429,68 +432,70 @@ class MapGen:
                     h.distance = min(numbers)
 
     def _generate_pressure(self):
-        print("Generating pressure") if self.debug else False
 
-        base_pressure = self.hex_grid.params.get('surface_pressure')
+        with Timer("Generating pressure", self.debug):
+            base_pressure = self.hex_grid.params.get('surface_pressure')
 
-        # calcualte pressure caused by pressure zones
-        pressure_diff = random.randint(3, 5)
-        for y, row in enumerate(self.hex_grid.grid):
-            for x, col in enumerate(row):
-                h = self.hex_grid.grid[x][y]
+            with Timer("    calculating pressure zones", self.debug):
+                # calcualte pressure caused by pressure zones
+                pressure_diff = random.randint(3, 5)
+                for y, row in enumerate(self.hex_grid.grid):
+                    for x, col in enumerate(row):
+                        h = self.hex_grid.grid[x][y]
 
-                # end_year is winter, mid_year is summer
+                        # end_year is winter, mid_year is summer
+                        if h.is_land:
+                            max_shift = round(h.distance / 2)
+                            end_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, -max_shift)
+                            mid_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, max_shift)
+                        else:
+                            max_shift = min(6, 0.005 * round(self.hex_grid.sealevel - h.latitude))
+                            end_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, -max_shift)
+                            mid_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, max_shift)
+                        h.pressure = (end_year, mid_year)
+
+            # sort all hexes by land and water, lowest to highest
+            with Timer("    sorting hexes into groups", self.debug):
+                land_hexes = [h for h in self.hex_grid.hexes if h.is_land]
+                water_hexes = [h for h in self.hex_grid.hexes if not h.is_land]
+                land_hexes.sort(key=lambda x: x.altitude, reverse=True)
+                water_hexes.sort(key=lambda x: x.altitude)
+
+            def decide_change(h, incr):
                 if h.is_land:
-                    max_shift = round(h.distance / 2)
-                    end_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, -max_shift)
-                    mid_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, max_shift)
+                    if h.hemisphere is Hemisphere.northern:
+                        # winter / increase
+                        # summer / decrease
+                        return (h.pressure[0] + incr, h.pressure[1] - incr)
+                    elif h.hemisphere is Hemisphere.southern:
+                        # winter / decrease
+                        # summer / increase
+                        return (h.pressure[0] - incr, h.pressure[1] + incr)
                 else:
-                    max_shift = min(6, 0.005 * round(self.hex_grid.sealevel - h.latitude))
-                    end_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, -max_shift)
-                    mid_year = pressure_at_seasons(h.latitude, base_pressure, pressure_diff, max_shift)
-                h.pressure = (end_year, mid_year)
+                    if h.hemisphere is Hemisphere.northern:
+                        # winter / decrease
+                        # summer / increase
+                        return (h.pressure[0] - incr, h.pressure[1] + incr)
+                    elif h.hemisphere is Hemisphere.southern:
+                        # winter / increase
+                        # summer / decrease
+                        return (h.pressure[0] + incr, h.pressure[1] - incr)
+                    # return (h.pressure[0], h.pressure[1])
 
-        # sort all hexes by land and water, lowest to highest
-        land_hexes = [h for h in self.hex_grid.hexes if h.is_land]
-        water_hexes = [h for h in self.hex_grid.hexes if not h.is_land]
-        land_hexes.sort(key=lambda x: x.altitude, reverse=True)
-        water_hexes.sort(key=lambda x: x.altitude)
+            def brush(percent, incr):
+                matching_land_hexes = land_hexes[0:round(len(land_hexes) * percent)]
+                matching_water_hexes = water_hexes[0:round(len(water_hexes) * percent)]
 
-        def decide_change(h, incr):
-            if h.is_land:
-                if h.hemisphere is Hemisphere.northern:
-                    # winter / increase
-                    # summer / decrease
-                    return (h.pressure[0] + incr, h.pressure[1] - incr)
-                elif h.hemisphere is Hemisphere.southern:
-                    # winter / decrease
-                    # summer / increase
-                    return (h.pressure[0] - incr, h.pressure[1] + incr)
-            else:
-                if h.hemisphere is Hemisphere.northern:
-                    # winter / decrease
-                    # summer / increase
-                    return (h.pressure[0] - incr, h.pressure[1] + incr)
-                elif h.hemisphere is Hemisphere.southern:
-                    # winter / increase
-                    # summer / decrease
-                    return (h.pressure[0] + incr, h.pressure[1] - incr)
-                # return (h.pressure[0], h.pressure[1])
+                for h in matching_land_hexes:
+                    for h in h.bubble(3):
+                        h.pressure = decide_change(h, incr * h.zone.incr)
+                for h in matching_water_hexes:
+                    for h in h.bubble(3):
+                        h.pressure = decide_change(h, incr * h.zone.incr)
 
-        def brush(percent, incr):
-            matching_land_hexes = land_hexes[0:round(len(land_hexes) * percent)]
-            matching_water_hexes = water_hexes[0:round(len(water_hexes) * percent)]
-
-            for h in matching_land_hexes:
-                for h in h.bubble(3):
-                    h.pressure = decide_change(h, incr * h.zone.incr)
-            for h in matching_water_hexes:
-                for h in h.bubble(3):
-                    h.pressure = decide_change(h, incr * h.zone.incr)
-
-        brush(0.80, 0.05)
-        brush(0.30, 0.10)
-        brush(0.10, 0.10)
+            brush(0.80, 0.05)
+            brush(0.30, 0.10)
+            brush(0.10, 0.10)
 
         # decide wind directions
         # Wind consists of a HexEdge direction and a magnitude that is equal to the difference in pressure
@@ -502,15 +507,60 @@ class MapGen:
         # Southern Hemisphere:
         #     high pressure areas: counter-clockwise
         #     low pressure areas: clockwise
-        print("Generating wind") if self.debug else False
-        for y, row in enumerate(self.hex_grid.grid):
-            for x, col in enumerate(row):
-                h = self.hex_grid.grid[x][y]
-                h.wind = (
-                    decide_wind(0, base_pressure, h),
-                    decide_wind(1, base_pressure, h)
-                )
+        with Timer("Generating wind", self.debug):
+            for y, row in enumerate(self.hex_grid.grid):
+                for x, col in enumerate(row):
+                    h = self.hex_grid.grid[x][y]
+                    h.wind = (
+                        decide_wind(0, base_pressure, h),
+                        decide_wind(1, base_pressure, h)
+                    )
 
+        # IDEA 1
+        # If hex is warmer than downstream: increase temperature downstream 20 hexes
+        # If hex is colder than downstream: decrease temperature downstream 20 hexes
+        # downstream hexes are neighboring hexes that have lower pressure
+        # magnitude depends on pressure difference
+        # Visit each hex. Steps: N*N*20 where N is map size
+
+        # IDEA 2
+        # going downstream, bring each hex's temperature close to the starting hex's temperature
+        # less and less each loop, with loop 1 being very close and loop 20 being barely changed
+
+        # IDEA 3
+        # Visiting every hex, start a loop downstream until you reach a hex you have already visited
+        # in this loop, averaging every hex's temperature with the last visited hex's temperature
+        # weighted average favoring hex's base temperature when wind is less strong
+        def windgust(season_index, starting_hex, loops=20):
+            downstream_hex = starting_hex.wind[season_index].get('windward_hex')
+            temp_change = ((20 / (loops + 1)) / 20) * 10
+            if starting_hex.base_temperature[season_index] > downstream_hex.base_temperature[season_index]:
+                # increase temperature at downstream hex
+                downstream_hex.wind_temp_effect[season_index] = temp_change / 2
+                # decrease temperature at this hex
+                starting_hex.wind_temp_effect[season_index] = -(temp_change / 2)
+            else:
+                # decrease temperature at downstream hex
+                downstream_hex.wind_temp_effect[season_index] = -(temp_change / 2)
+                # increase temperature at this hex
+                starting_hex.wind_temp_effect[season_index] = temp_change / 2
+
+            # go on to the next hex in line
+            if loops != 0:
+                next_hex = downstream_hex.wind[season_index].get('windward_hex')
+                windgust(season_index, next_hex, loops - 1)
+
+
+        with Timer("Generating Temperature Changes", self.debug):
+            for y, row in enumerate(self.hex_grid.grid):
+                for x, col in enumerate(row):
+                    h = self.hex_grid.grid[x][y]
+
+                    # end year
+                    windgust(0, h)
+
+                    # mid year
+                    windgust(1, h)
 
 
     def _generate_rivers(self):
@@ -542,9 +592,10 @@ class MapGen:
             ry = random.randint(0, self.hex_grid.size - 1)
             hex_s = self.hex_grid.find_hex(rx, ry)
             if hex_s.is_inland and hex_s.altitude > self.hex_grid.sealevel + 35:
-                if hex_s.temperature < 0:
-                    # don't place rivers above +35 altitude when the temperature is below zero
-                    continue
+                # if hex_s.temperature < 0:
+                # TODO: Determine when to not place rivers at hight latitudes
+                #     # don't place rivers above +35 altitude when the temperature is below zero
+                #     continue
                 random_side = random.choice(list(HexSide))
                 #print("Placing river source at {}, {}".format(rx, ry))
                 self.rivers_sources.append(RiverSegment(self.hex_grid, rx, ry, random_side, True))
@@ -663,6 +714,8 @@ class MapGen:
                     # print("Segment: ", r.next)
                     final.append(r.next)
                     r = r.next
+        for r in final:
+            r.edge.is_river = True
         self.rivers = final
 
     def is_river(self, edge):
@@ -687,6 +740,71 @@ class MapGen:
                 seg.append(s.side)
         return seg
 
+    def export(self, filename):
+        """ Export the map data as a JSON file """
+        with Timer("Compiling data into dictionary", self.debug):
+            params = copy.copy(self.params)
+            params['map_type'] = params.get('map_type').to_dict()
+            params['ocean_type'] = params.get('ocean_type').to_dict()
+            data = {
+                "parameters": params,
+                "details": {
+                    "size": self.hex_grid.size,
+                    "sea_level": self.hex_grid.sealevel,
+                    "avg_height": self.hex_grid.average_height,
+                    "max_height": self.hex_grid.highest_height,
+                    "min_height": self.hex_grid.lowest_height
+                },
+                "hexes": []
+            }
+            def edge_dict(edge):
+                return dict(
+                    is_river=edge.is_river,
+                    is_coast=edge.is_coast,
+                    direction=edge.direction.name
+                )
+            for x, row in enumerate(self.hex_grid.grid):
+                row_data = []
+                for y, col in enumerate(row):
+                    h = self.hex_grid.find_hex(x, y)
+                    color_temperature = (
+                        (h.color_temperature[0][0] + h.color_temperature[1][0]) / 2,
+                        (h.color_temperature[0][1] + h.color_temperature[1][1]) / 2,
+                        (h.color_temperature[0][2] + h.color_temperature[1][2]) / 2
+                    )
+                    temperature = round((h.temperature[0] + h.temperature[1]) / 2, 2)
+                    row_data.append({
+                        "id": h.id.hex,
+                        "x": x,
+                        "y": y,
+                        "altitude": h.altitude,
+                        "temperature": temperature,
+                        "moisture": h.moisture,
+                        "biome": h.biome.to_dict(),
+                        "type": h.type.name,
+                        "is_inland": h.is_inland,
+                        "is_coast": h.is_coast,
+                        "colors": {
+                            "satellite": h.color_satellite,
+                            "terrain": h.color_terrain,
+                            "temperature": color_temperature,
+                            "biome": h.color_biome,
+                            "rivers": h.color_rivers
+                        },
+                        "edges": {
+                            "east": edge_dict(h.edge_east),
+                            "north_east": edge_dict(h.edge_north_east),
+                            "north_west": edge_dict(h.edge_north_west),
+                            "west": edge_dict(h.edge_west),
+                            "south_west": edge_dict(h.edge_south_west),
+                            "south_east": edge_dict(h.edge_south_east)
+                        }
+                    })
+                data['hexes'].append(row_data)
+        with open(filename, 'w') as outfile:
+            with Timer("Writing data to JSON file", self.debug):
+                json.dump(data, outfile)
+        return data
 
 from hexgen.river import RiverSegment
 from hexgen.hex import Hex, HexSide, HexFeature

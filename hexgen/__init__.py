@@ -8,8 +8,8 @@ from hexgen.draw import HexGridDraw
 # @exec_time
 def draw_grid(hex_grid):
     def color_heightmap(h):
-        alt = h.altitude
-        return alt, alt, alt
+        alt = int(h.altitude)
+        return (alt, alt, alt)
 
     # make terrain map
     def color_terrain(h):
@@ -18,8 +18,17 @@ def draw_grid(hex_grid):
     def color_rivers(h):
         return h.color_rivers
 
-    def color_temperature(h):
-        return h.color_temperature
+    def color_temperature_end_year(h):
+        return h.color_temperature[0]
+
+    def color_temperature_mid_year(h):
+        return h.color_temperature[1]
+
+    def temperature_end_year(h):
+        return h.temperature[0]
+
+    def temperature_mid_year(h):
+        return h.temperature[1]
 
     def color_biome(h):
         return h.color_biome
@@ -72,17 +81,30 @@ def draw_grid(hex_grid):
         return h.color_pressure[1]
 
     def wind_display_end_year(h):
-        return h.wind[0].get('direction').arrow
+        wind = h.wind[0].get('direction')
+        if wind:
+            return wind.arrow
+        return "-"
 
     def wind_display_mid_year(h):
-        return h.wind[1].get('direction').arrow
+        wind = h.wind[1].get('direction')
+        if wind:
+            return wind.arrow
+        return "-"
+
+    def color_hex_type(h):
+        if h.is_land:
+            return (0, 255, 0)
+        return (0, 0, 255)
 
 
     # HexGridDraw(hex_grid, color_features, "map_features.png", show_coasts=True, rivers=False)
-    HexGridDraw(hex_grid, color_heightmap, "map_height.png", rivers=False, show_coasts=True)
-    # HexGridDraw(hex_grid, color_terrain, "map_terrain.png", rivers=True)
-    # HexGridDraw(hex_grid, color_rivers, "map_rivers.png", rivers=True)
-    # HexGridDraw(hex_grid, color_temperature, "map_temp.png", rivers=False, show_coasts=True)
+    # HexGridDraw(hex_grid, color_heightmap, "map_height.png",   rivers=False, show_coasts=True)
+    # HexGridDraw(hex_grid, color_terrain, "map_terrain.png",    rivers=True, show_coasts=True)
+    # HexGridDraw(hex_grid, color_hex_type, "map_hex_types.png", rivers=True, show_coasts=True)
+    HexGridDraw(hex_grid, color_rivers, "map_rivers.png", rivers=True, show_coasts=True)
+    # HexGridDraw(hex_grid, color_temperature_end_year, "map_temp_end_year.png", rivers=False, show_coasts=True)
+    # HexGridDraw(hex_grid, color_temperature_mid_year, "map_temp_mid_year.png", rivers=False, show_coasts=True)
     # HexGridDraw(hex_grid, color_biome, "map_biome.png", rivers=False)
     # HexGridDraw(hex_grid, color_territories, "map_territories.png", rivers=False,
     #             show_coasts=True, borders=True)
@@ -90,8 +112,8 @@ def draw_grid(hex_grid):
     # HexGridDraw(hex_grid, color_resources, "map_resources.png")
     # HexGridDraw(hex_grid, color_zone, "map_zone.png", text_func=key_zone, rivers=False, show_coasts=False)
     # HexGridDraw(hex_grid, color_zone, "map_latitude.png", text_func=hex_latitude, rivers=False, show_coasts=False)
-    HexGridDraw(hex_grid, color_pressure_end_year, "map_pressure_end_year.png", rivers=False, show_coasts=True)
-    HexGridDraw(hex_grid, color_pressure_mid_year, "map_pressure_mid_year.png", rivers=False, show_coasts=True)
+    # HexGridDraw(hex_grid, color_pressure_end_year, "map_pressure_end_year.png", rivers=False, show_coasts=True)
+    # HexGridDraw(hex_grid, color_pressure_mid_year, "map_pressure_mid_year.png", rivers=False, show_coasts=True)
     # HexGridDraw(hex_grid, color_wind_end_year, "map_wind_end_year.png", text_func=wind_display_end_year, rivers=False, show_coasts=True)
     # HexGridDraw(hex_grid, color_wind_mid_year, "map_wind_mid_year.png", text_func=wind_display_mid_year, rivers=False, show_coasts=True)
 

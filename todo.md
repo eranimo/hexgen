@@ -22,12 +22,12 @@
 
     [ ] each hex has a wind speed and hex direction
         [ ] wind speed: higher in ocean hexes than land hexes. Proportional to planet atmospheric pressure and average surface temperature
-        [ ] wind direction: dependent on prevailing wind pattern
-    [ ] calculating wind direction
+        [x] wind direction: dependent on prevailing wind pattern
+    [x] calculating wind direction
         -  wind goes from high pressure to low pressure cells
         -  hex wind direction will point towards neighbor with lowest atmospheric pressure
         -  groups of similar pressure are "cells"
-    [ ] calculating hex pressure
+    [x] calculating hex pressure
         - higher pressures on Tropic of Cancer (northern) and Tropic of Capricorn (southern) and polar regions
         - lower pressures on equator and between the tropics
         - lower pressure in higher elevations
@@ -50,3 +50,7 @@
     [ ] detect peninsulas
     [ ] detect islands
     [ ] name all of the above
+- new generator architecture
+    [x] use numpy
+    [ ] store all values of a hex in fixed numpy arrays "value array" in the grid instance, use getters and setters to access each value without having to rewrite a lot of code
+    [ ] use transform functions instead of putting everything in mapgen.py

@@ -1,3 +1,4 @@
+import uuid
 import math
 import random
 from enum import Enum
@@ -5,6 +6,7 @@ from enum import Enum
 from hexgen.constants import *
 from hexgen.enums import Biome, MapType, HexType, HexFeature, HexSide, Zones, Hemisphere, HexEdge
 from hexgen.util import blend_colors, lighten, randomize_color, pressure_at_seasons, decide_wind
+
 
 class Hex:
     def __init__(self, grid, x, y, altitude):
@@ -35,12 +37,16 @@ class Hex:
         world_pressure = self.grid.params.get('surface_pressure')
         self.pressure = (world_pressure, world_pressure)
         self.wind = None
+        self.wind_temp_effect = [0, 0] # Seasonal tuple. Temp changes from pressure and wind
 
         # instance of a sea
         self.sea = None
 
-        if self.temperature <= -12 and self.is_water:
-            self.features.add(HexFeature.glacier)
+        self.id = uuid.uuid4()
+
+        # if self.temperature[0] <= -12 or self.temperature[1] <= 12 and self.is_water:
+        #     # TODO: this should be better
+        # self.features.add(HexFeature.glacier)
 
     def has_feature(self, feature):
         """
@@ -193,7 +199,7 @@ class Hex:
             return Zones.antarctic_circle
 
     @property
-    def temperature(self):
+    def base_temperature(self):
         """
         Computes the temperature of this hex. Takes into account the latitude (x-coord) and
         the altitude (higher is colder)
@@ -202,13 +208,14 @@ class Hex:
         # import ipdb; ipdb.set_trace()
         ratio = self.latitude_ratio
         avg_temp = self.grid.params.get('avg_temp')
-        volitility = round(self.grid.params.get('axial_tilt') / 2)
+        volitility = round(abs(self.grid.params.get('axial_tilt')))
         base_temp = self.grid.params.get('base_temp')
         min_temp = max(avg_temp - volitility, base_temp)
         # global avg temperature should be around ratio 0.4 and 0.6
 
         # part1 includes latitude only
         part1 = (abs(min_temp) + (avg_temp + volitility)) * ratio + min_temp
+        # return (part1, part1)
         #print(base_temp, avg_temp, volitility, min_temp, ratio, part1)
         #       43         73          16         57
 
@@ -217,7 +224,15 @@ class Hex:
         if self.is_water:
             factor = 8
         part2 = abs(self.altitude - self.grid.sealevel) / factor
-        return round(part1, 2) - round(part2, 2)
+        return (round(part1, 2) - round(part2, 2), round(part1, 2) - round(part2, 2))
+
+    @property
+    def temperature(self):
+        return (
+            self.base_temperature[0] + self.wind_temp_effect[0],
+            self.base_temperature[1] + self.wind_temp_effect[1],
+        )
+
 
     @property
     def biome(self):
@@ -239,7 +254,7 @@ class Hex:
                     return Biome.barren_dusty
 
         elif map_type is MapType.terran:
-            temp = self.temperature
+            temp = self.temperature[0]
             rain = self.moisture
             if temp <= -10:
                 return Biome.arctic
@@ -459,7 +474,7 @@ class Hex:
         Determines whether or not this is a land hex. (Altitude over sealevel)
         :return: Boolean
         """
-        return self.altitude >= self.grid.sealevel
+        return bool(self.altitude >= self.grid.sealevel)
 
     @property
     def is_water(self):
@@ -472,6 +487,7 @@ class Hex:
 
         return HexType.ocean
 
+    @property
     def is_inland(self):
         if self.is_land is False:
             return False
@@ -620,15 +636,20 @@ class Hex:
 
     @property
     def color_temperature(self):
-        last_temp = -300
-        for index, value in enumerate(TEMPERATURE_COLORS):
-            temp, color = value
-            if last_temp <= self.temperature <= temp:
-                if self.is_land:
-                    return color[0] - 20, color[1] - 20, color[2] - 20
-                return color
-            last_temp = temp
-        return TEMPERATURE_COLORS[-1][1]
+        def color_temp(loc):
+            last_temp = -300
+            for index, value in enumerate(TEMPERATURE_COLORS):
+                temp, color = value
+                if last_temp <= loc <= temp:
+                    # if self.is_land:
+                    #     return color[0] - 20, color[1] - 20, color[2] - 20
+                    return color
+                last_temp = temp
+            return TEMPERATURE_COLORS[-1][1]
+        return (
+            color_temp(self.temperature[0]),
+            color_temp(self.temperature[1])
+        )
 
     @property
     def color_satellite(self):

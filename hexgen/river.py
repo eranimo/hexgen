@@ -1,3 +1,6 @@
+import uuid
+
+
 class RiverSegment:
     def __init__(self, grid, x, y, side, is_source=False):
         self.grid = grid
@@ -6,6 +9,8 @@ class RiverSegment:
         self.side = side
         self.is_source = is_source
         self.next = None
+
+        self.id = uuid.uuid4()
 
     @property
     def hex(self):
