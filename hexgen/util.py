@@ -4,6 +4,36 @@ import time
 
 from hexgen.enums import HexEdge, Hemisphere
 
+import collections
+import functools
+from itertools import combinations
+
+class memoized(object):
+    '''Decorator. Caches a function's return value each time it is called.
+    If called later with the same arguments, the cached value is returned
+    (not reevaluated).
+    '''
+    def __init__(self, func):
+        self.func = func
+        self.cache = {}
+    def __call__(self, *args):
+        if not isinstance(args, collections.Hashable):
+            # uncacheable. a list, for instance.
+            # better to not cache than blow up.
+            return self.func(*args)
+        if args in self.cache:
+            return self.cache[args]
+        else:
+            value = self.func(*args)
+            self.cache[args] = value
+        return value
+    def __repr__(self):
+        '''Return the function's docstring.'''
+        return self.func.__doc__
+    def __get__(self, obj, objtype):
+        '''Support instance methods.'''
+        return functools.partial(self.__call__, obj)
+
 def blend_colors(color1, color2):
     return min(round((color1[0] + color2[0]) / 2), 255), \
            min(round((color1[1] + color2[1]) / 2), 255), \
@@ -66,7 +96,7 @@ def pressure_at_seasons(latitude, base_pressure, pressure_diff, itcz_rise):
         final_pressure = base_pressure + random.randint(-1, 1)
     return round(final_pressure)
 
-
+@memoized
 def clockwise_hex_edge(hex_edge, reverse=False):
     """
     Given a HexEdge, return the clockwise hex edge.
@@ -143,3 +173,71 @@ class Timer:
         if self.debug:
             print(self.text.ljust(50), end="")
             print("finished after {:0.03f} ms\n".format(self.interval * 1000))
+
+@memoized
+def is_opposite_hex(my_side, other_side, strict=False):
+    """
+        Given two HexEdges, are they opposite of each other?
+
+        A hex is opposite of another in the following circumstances:
+
+        W -> NE, E, SE
+        NW -> E, SE, SW
+        NE -> SE, SW, W
+        E -> NW, W, SW
+        SE -> NE, NW, W
+        SW -> E, NE, NW
+    """
+    opp = {}
+    opp[HexEdge.west]       = [HexEdge.east, HexEdge.north_east, HexEdge.south_east]
+    opp[HexEdge.north_west] = [HexEdge.south_east, HexEdge.east, HexEdge.south_west]
+    opp[HexEdge.north_east] = [HexEdge.south_west, HexEdge.south_east, HexEdge.west]
+    opp[HexEdge.east]       = [HexEdge.west, HexEdge.north_west, HexEdge.south_west]
+    opp[HexEdge.south_east] = [HexEdge.north_west, HexEdge.north_east, HexEdge.west]
+    opp[HexEdge.south_west] = [HexEdge.north_east, HexEdge.east, HexEdge.north_west]
+
+    if strict:
+        return other_side is opp[my_side][0]
+    return other_side in opp[my_side]
+
+def is_isthmus(h):
+    if h.is_water:
+        return False
+    water_neighbors = [h for h in h.neighbors if h[1].is_water]
+    if len(water_neighbors) == 2:
+        # if we have two water hexes in our neighbors,
+        # and any one of them are opposite of another one,
+        # we have an isthmus
+        for one, two in combinations(water_neighbors, 2):
+            if is_opposite_hex(one[0], two[0]):
+                return True
+    return False
+
+def is_peninsula(h):
+    """ A hex is a peninsula if it has only one land neighbor """
+    if h.is_water:
+        return False
+    land_neighbors = [h for h in h.neighbors if h[1].is_land]
+    return len(land_neighbors) == 1
+
+def is_bay(h):
+    if h.is_land:
+        return False
+    water_neighbors = [h for h in h.neighbors if h[1].is_water]
+    return len(water_neighbors) == 1
+
+def is_strait(h):
+    if h.is_land:
+        return False
+    water_neighbors = [h for h in h.neighbors if h[1].is_water]
+    if len(water_neighbors) == 2:
+        return is_opposite_hex(water_neighbors[0][0], water_neighbors[1][0])
+    return False
+
+def first_hex_without_geoform(hexes):
+    for y, row in enumerate(hexes):
+        for x, col in enumerate(row):
+            h = hexes[x][y]
+            if h.geoform_type is None:
+                return h
+    return None

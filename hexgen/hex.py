@@ -5,7 +5,7 @@ from enum import Enum
 
 from hexgen.constants import *
 from hexgen.enums import Biome, MapType, HexType, HexFeature, HexSide, Zones, Hemisphere, HexEdge
-from hexgen.util import blend_colors, lighten, randomize_color, pressure_at_seasons, decide_wind
+from hexgen.util import blend_colors, lighten, randomize_color, pressure_at_seasons, decide_wind, is_opposite_hex, memoized
 
 
 class Hex:
@@ -32,7 +32,14 @@ class Hex:
 
         self.features = set()
 
+        # geoform type
+        self.geoform_type = None
+
+        # geoform instance if it exists
+        self.geoform = None
+
         self.resource = None
+        self._neighbors = None
 
         world_pressure = self.grid.params.get('surface_pressure')
         self.pressure = (world_pressure, world_pressure)
@@ -154,6 +161,7 @@ class Hex:
             ratio = (1 - ratio) / 0.5
         return ratio
 
+
     @property
     def hemisphere(self):
         if self.x <= round(self.grid.size / 2):
@@ -268,15 +276,17 @@ class Hex:
                 return Biome.grasslands
             elif 2.5 < rain <= 5 and 0 < temp <= 20:
                 return Biome.shrubland
-            elif 0 <= rain <= 5 and 20 < temp:
+            elif 0 <= rain < 4 and 20 < temp:
                 return Biome.desert
+            elif 4 <= rain <= 8 and 20 < temp:
+                return Biome.shrubland
             elif 5 < rain <= 10 and 7 < temp <= 20:
                 return Biome.savanna
             elif 10 < rain <= 20 and 7 < temp <= 20:
                 return Biome.temperate_forest
             elif 20 < rain and 7 < temp <= 20:
                 return Biome.temperate_rainforest
-            elif 5 < rain <= 20 and 20 < temp:
+            elif 8 < rain <= 20 and 20 < temp:
                 return Biome.tropical_forest
             elif 20 < rain and 20 < temp:
                 return Biome.tropical_rainforest
@@ -433,14 +443,18 @@ class Hex:
     @property
     def neighbors(self):
         """ Surrounding hexes with HexEdge enums """
-        return [
-            (HexEdge.east, self.hex_east),
-            (HexEdge.south_east, self.hex_south_east),
-            (HexEdge.south_west, self.hex_south_west),
-            (HexEdge.west, self.hex_west),
-            (HexEdge.north_west, self.hex_north_west),
-            (HexEdge.north_east, self.hex_north_east),
-        ]
+        if self._neighbors is not None:
+            return self._neighbors
+        else:
+            self._neighbors = [
+                (HexEdge.east, self.hex_east),
+                (HexEdge.south_east, self.hex_south_east),
+                (HexEdge.south_west, self.hex_south_west),
+                (HexEdge.west, self.hex_west),
+                (HexEdge.north_west, self.hex_north_west),
+                (HexEdge.north_east, self.hex_north_east),
+            ]
+            return self._neighbors
 
     def bubble(self, distance=1):
         """

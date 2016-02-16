@@ -3,6 +3,7 @@ import random
 from hexgen.mapgen import MapGen
 from hexgen.hex import HexFeature
 from hexgen.constants import *
+from hexgen.enums import GeoformType
 from hexgen.draw import HexGridDraw
 
 # @exec_time
@@ -97,11 +98,17 @@ def draw_grid(hex_grid):
             return (0, 255, 0)
         return (0, 0, 255)
 
+    def color_geoforms(h):
+        for g in GeoformType.list():
+            if h.geoform.type is g:
+                return g.color
+        return (0, 0, 255)
 
     # HexGridDraw(hex_grid, color_features, "map_features.png", show_coasts=True, rivers=False)
     # HexGridDraw(hex_grid, color_heightmap, "map_height.png",   rivers=False, show_coasts=True)
     # HexGridDraw(hex_grid, color_terrain, "map_terrain.png",    rivers=True, show_coasts=True)
     # HexGridDraw(hex_grid, color_hex_type, "map_hex_types.png", rivers=True, show_coasts=True)
+    HexGridDraw(hex_grid, color_geoforms, "map_geoforms.png", rivers=False, show_coasts=True)
     HexGridDraw(hex_grid, color_rivers, "map_rivers.png", rivers=True, show_coasts=True)
     # HexGridDraw(hex_grid, color_temperature_end_year, "map_temp_end_year.png", rivers=False, show_coasts=True)
     # HexGridDraw(hex_grid, color_temperature_mid_year, "map_temp_mid_year.png", rivers=False, show_coasts=True)

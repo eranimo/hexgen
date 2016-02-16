@@ -49,6 +49,7 @@ class SuperEnum(Enum):
         return [cls[x] for x in list(cls.__members__)]
 
 
+# https://jsfiddle.net/ajfu7em8/1/
 class Biome(SuperEnum):
     __keys__ = ['id', 'code', 'title', 'color', 'base_fertility', 'color_satellite']
 
@@ -57,7 +58,7 @@ class Biome(SuperEnum):
     # terran
     arctic =               (1, 'a', 'Arctic',                 (224, 224, 224), 1,  (132, 152, 159))
     tundra =               (2, 'u', 'Tundra',                 (114, 153, 128), 15, (52, 55, 44))
-    alpine_tundra =        (3, 'p', 'Alpine Tundra',          (97, 130, 106),  10, (103, 91, 61))
+    alpine_tundra =        (3, 'p', 'Alpine Tundra',          (97, 130, 106),  10, (59, 60, 42))
     desert =               (4, 'd', 'Desert',                 (237, 217, 135), 5,  (94, 78, 52))
     shrubland =            (5, 's', 'Shrubland',              (194, 210, 136), 20, (58, 47, 21))
     savanna =              (6, 'S', 'Savanna',                (219, 230, 158), 80, (66, 53, 28))
@@ -188,13 +189,34 @@ class HexFeature(Enum):
     lake = "Lake"           # The terminus to a river if it didn't reach sealevel
     glacier = "Glacier"     # A water hex with a very low surface temperature
 
-    # unused
-    mountain = "Mountain"   # A land hex that has at least two opposite neighboring
-                            #   hexes 15 units lower than this hex
+
+    # randomly placed
     volcano = "Volcano"     # Volcano: 1 hex or 2-ring or 3-ring
     lava_flow = "Lava Flow"
     crater = "Crater"       # depression of size 2-ring or 3-ring
+
+    # bodies of water
     sea = "Sea"
+    ocean = "Ocean"
+
+class GeoformType(SuperEnum):
+    """ A grouping of like geographic features """
+    __keys__ = ['id', 'title', 'color']
+
+    # water
+    ocean   = (1, "Ocean", (0, 0, 255))       # > 100 water hexes
+    sea     = (2, "Sea", (50, 50, 200))         # < 100 water hexes
+    strait  = (3, "Strait", (100, 100, 150))      # a water hex with land on opposite sides and water in between them
+    lake    = (4, "Lake", (0, 0, 100))        # a group of up to 3 water hexes
+    bay = (10, "Bay", (50, 50, 150))
+
+    # land
+    isthmus = (5, "Isthmus", (100, 150, 100))            # a land hex with water on opposite sides and land in between them
+    small_island  = (6, "Small Island", (200, 255, 200)) # < 25 land hexes
+    large_island  = (7, "Large Island", (100, 255, 100)) # < 100 land hexes
+    continent = (8, "Continent", (0, 255, 0))        # > 100 land hexes
+    peninsula = (9, "Peninsula", (0, 200, 0))        # group of land separated by an isthmus
+
 
 
 class EdgeDirection(Enum):
