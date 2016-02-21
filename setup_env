@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+echo "Downloading Python 3.5"
+brew install python3
+
+echo "Creating virtualenv"
+PY3PATH=`which python3`
+virtualenv -p $PY3PATH env
+
+echo "Activating virtualenv"
+. ./env/bin/activate
+
+echo "Installing dependencies"
+pip install -r requirements.txt
+
+echo "Running tests"
+./test

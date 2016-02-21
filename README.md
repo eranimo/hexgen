@@ -1,5 +1,7 @@
 # Hexgen
 
+![Satellite Map](http://i.imgur.com/ekkaWgkl.png)
+
 ## What is this?
 It's a world map generator written in Python. It generates a random world map represented in a hexagon grid. The parameters for the generator allow for any kind of planet surface to be generated. It also can segment the surface into randomly sized globs called territories.
 
