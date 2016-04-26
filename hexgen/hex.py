@@ -272,9 +272,9 @@ class Hex:
                 return Biome.tundra
             elif 5 < rain and 0 < temp <= 7:
                 return Biome.boreal_forest
-            elif 0 <= rain <= 2.5 and 0 < temp <= 20:
+            elif 0 <= rain <= 3.5 and 0 < temp <= 20:
                 return Biome.grasslands
-            elif 2.5 < rain <= 5 and 0 < temp <= 20:
+            elif 3.5 < rain <= 5 and 0 < temp <= 20:
                 return Biome.shrubland
             elif 0 <= rain < 4 and 20 < temp:
                 return Biome.desert

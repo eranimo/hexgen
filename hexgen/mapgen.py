@@ -690,23 +690,23 @@ class MapGen:
                     # print("huh?")
 
                     # both edges are invalid, make lake at one or two
-                    if segment.edge.one.altitude < segment.edge.two.altitude:
-                        lake = segment.edge.one
-                    else:
-                        lake = segment.edge.two
-                    lake.add_feature(HexFeature.lake)
+                    # if segment.edge.one.altitude < segment.edge.two.altitude:
+                    #     lake = segment.edge.one
+                    # else:
+                    #     lake = segment.edge.two
+                    # lake.add_feature(HexFeature.lake)
 
                     # moisture around lake increases
-                    surrounding = lake.surrounding
-                    for hex in surrounding:
-                        if hex.is_land:
-                            hex.moisture += 3
+                    # surrounding = lake.surrounding
+                    # for hex in surrounding:
+                    #     if hex.is_land:
+                    #         hex.moisture += 3
 
                     # print("\tMade a lake at {}, {}".format(segment.x, segment.y))
 
                     # make a new source river at an outer edge of the lake
-                    chosen_edge = random.choice(lake.outer_edges)
-                    self.rivers_sources.append(RiverSegment(self.hex_grid, chosen_edge.one.x, chosen_edge.one.y, chosen_edge.side, True))
+                    # chosen_edge = random.choice(lake.outer_edges)
+                    # self.rivers_sources.append(RiverSegment(self.hex_grid, chosen_edge.one.x, chosen_edge.one.y, chosen_edge.side, True))
 
                     finished = True
 
