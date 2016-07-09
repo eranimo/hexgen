@@ -1,6 +1,6 @@
 import math
 import random
-
+import numpy as np
 
 class Heightmap:
 
@@ -9,7 +9,7 @@ class Heightmap:
 
         # start making the heightmap
         self.size = params.get('size')
-        self.grid = [[0 for x in range(0, self.size)] for x in range(0, self.size)]
+        self.grid = np.zeros((self.size, self.size))
         self.grid[0][0] = random.randint(0, 255)
         self.grid[self.size - 1][0] = random.randint(0, 255)
         self.grid[0][self.size - 1] = random.randint(0, 255)
@@ -23,7 +23,8 @@ class Heightmap:
             m.append(max(g))
             avg.append(sum(g) / float(len(g)))
 
-        self.top_height = max(m)
+        self.highest_height = max(m)
+        self.lowest_height = min(m)
         self.average_height = sum(avg) / float(len(avg))
         sea_percent = params.get('sea_percent')
         self.sealevel = round(self.average_height * (sea_percent * 2 / 100))

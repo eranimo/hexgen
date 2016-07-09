@@ -1,64 +1,11 @@
+import uuid
+import math
 import random
 from enum import Enum
 
 from hexgen.constants import *
-from hexgen.enums import Biome, MapType
-from hexgen.util import blend_colors, lighten, randomize_color
-
-
-class HexType(Enum):
-    land = "Land"       # hex over or at sealevel
-    ocean = "Ocean"     # hex under sealevel
-
-class HexFeature(Enum):
-    """ Each hex can have multiple HexFeatures """
-    lake = "Lake"           # The terminus to a river if it didn't reach sealevel
-    glacier = "Glacier"     # A water hex with a very low surface temperature
-
-    # unused
-    mountain = "Mountain"   # A land hex that has at least two opposite neighboring
-                            #   hexes 15 units lower than this hex
-    volcano = "Volcano"     # Volcano: 1 hex or 2-ring or 3-ring
-    lava_flow = "Lava Flow"
-    crater = "Crater"       # depression of size 2-ring or 3-ring
-    sea = "Sea"
-
-class HexSide(Enum):
-    east = "East"
-    west = "West"
-    north_west = "North West"
-    north_east = "North East"
-    south_west = "South West"
-    south_east = "South East"
-
-    def branching(self, direction):
-        """ Returns the hex sides that fork from this edge direction """
-        if self is HexSide.east or self is HexSide.west:
-            if direction is EdgeDirection.north:
-                return HexSide.south_west, HexSide.south_east
-            else: # elif direction is EdgeDirection.south:
-                return HexSide.north_west, HexSide.north_east
-        elif self is HexSide.south_east:
-            if direction is EdgeDirection.north_east:
-                return HexSide.west, HexSide.south_west
-            else: # elif direction is EdgeDirection.south_west:
-                return HexSide.east, HexSide.north_east
-        elif self is HexSide.south_west:
-            if direction is EdgeDirection.north_west:
-                return HexSide.east, HexSide.south_east
-            else: # elif direction is EdgeDirection.south_east:
-                return HexSide.west, HexSide.north_west
-        elif self is HexSide.north_west:
-            if direction is EdgeDirection.south_west:
-                return HexSide.east, HexSide.north_east
-            else: # elif direction is EdgeDirection.north_east:
-                return HexSide.west, HexSide.south_west
-        elif self is HexSide.north_east:
-            if direction is EdgeDirection.north_west:
-                return HexSide.east, HexSide.south_east
-            else: # elif direction is EdgeDirection.south_east:
-                return HexSide.north_west, HexSide.west
-        raise Exception("Branching invalid, Side: {}, Direction: {}".format(self, direction))
+from hexgen.enums import Biome, MapType, HexType, HexFeature, HexSide, Zones, Hemisphere, HexEdge
+from hexgen.util import blend_colors, lighten, randomize_color, pressure_at_seasons, decide_wind, is_opposite_hex, memoized
 
 
 class Hex:
@@ -75,7 +22,7 @@ class Hex:
         self.edge_north_west = None
         self.edge_south_west = None
 
-        self.distance = 0
+        self.distance = 0 # distance in hexes to the coast. 0 if no coast
         self.moisture = 0
 
         self.territory = None
@@ -85,13 +32,28 @@ class Hex:
 
         self.features = set()
 
+        # geoform type
+        self.geoform_type = None
+
+        # geoform instance if it exists
+        self.geoform = None
+
         self.resource = None
+        self._neighbors = None
+
+        world_pressure = self.grid.params.get('surface_pressure')
+        self.pressure = (world_pressure, world_pressure)
+        self.wind = None
+        self.wind_temp_effect = [0, 0] # Seasonal tuple. Temp changes from pressure and wind
 
         # instance of a sea
         self.sea = None
 
-        if self.temperature <= -12 and self.is_water:
-            self.features.add(HexFeature.glacier)
+        self.id = uuid.uuid4()
+
+        # if self.temperature[0] <= -12 or self.temperature[1] <= 12 and self.is_water:
+        #     # TODO: this should be better
+        # self.features.add(HexFeature.glacier)
 
     def has_feature(self, feature):
         """
@@ -121,6 +83,75 @@ class Hex:
     def is_owned(self):
         return self.territory is not None
 
+    # @property
+    # def pressure(self):
+    #     """
+    #     Returns a season dict that represents the pressure in mPa in summer and winter.
+    #     This function should not be random, but instead be determined by other hex values.
+    #     """
+    #     world_pressure = self.grid.params.get('surface_pressure')
+    #
+    #     # create base pressure changes not accounting for land
+    #
+    #     # base pressure differences between the different pressure belts
+    #     # TODO: add variable here to make more volitile weather
+    #     # TODO: have this variable depend on axial tilt
+    #     pressure_diff = random.randint(6, 10)
+    #
+    #     # ±10 degrees         (centered on 0 degrees)   = ITCZ (low pressure)
+    #     # ±20 to ±40 degrees  (centered on ±30 degrees) = STHZ (high pressure)
+    #     # ±40 to ±80 degrees  (centered on ±60 degrees) = PF (low pressure)
+    #
+    #     # end_year is winter, mid_year is summer
+    #     if self.is_land:
+    #         max_shift = round(self.distance / 2)
+    #         end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
+    #         mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
+    #         base_pressure = (end_year, mid_year)
+    #     else:
+    #         max_shift = min(6, 0.005 * round(self.grid.sealevel - self.latitude))
+    #         end_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, -max_shift)
+    #         mid_year = pressure_at_seasons(self.latitude, world_pressure, pressure_diff, max_shift)
+    #         base_pressure = (end_year, mid_year)
+    #
+    #
+    #     # add effects of land and water
+    #     if self.is_land:
+    #         if self.hemisphere is Hemisphere.northern:
+    #             # winter
+    #             end_year = base_pressure[0] + min(15, round(self.distance * 0.5) )
+    #
+    #             # summer
+    #             mid_year = base_pressure[1] - min(15, round(self.distance * 0.5) )
+    #         elif self.hemisphere is Hemisphere.southern:
+    #             # summer
+    #             end_year = base_pressure[0] - min(15, round(self.distance * 0.5) )
+    #
+    #             # winter
+    #             mid_year = base_pressure[1] + min(15, round(self.distance * 0.5) )
+    #
+    #     return (end_year, mid_year)
+
+    # @property
+    # def wind(self):
+    #     """
+    #     Wind consists of a HexEdge direction and a magnitude that is equal to the difference in pressure
+    #     Wind direction is always to the neighbor with the lowest pressure,
+    #     deflected by the following rules:
+    #
+    #     Northern Hemisphere:
+    #         high pressure areas: clockwise
+    #         low pressure areas: counter-clockwise
+    #     Southern Hemisphere:
+    #         high pressure areas: counter-clockwise
+    #         low pressure areas: clockwise
+    #     """
+    #     world_pressure = self.grid.params.get('surface_pressure')
+    #     return (
+    #         decide_wind(0, world_pressure, self),
+    #         decide_wind(1, world_pressure, self)
+    #     )
+
     @property
     def latitude_ratio(self):
         ratio = self.x / self.grid.size
@@ -130,8 +161,53 @@ class Hex:
             ratio = (1 - ratio) / 0.5
         return ratio
 
+
     @property
-    def temperature(self):
+    def hemisphere(self):
+        if self.x <= round(self.grid.size / 2):
+            return Hemisphere.northern
+        return Hemisphere.southern
+
+    @property
+    def latitude(self):
+        """ Hex's current Latitude. Negative is south, positive is north """
+        ratio = self.x / self.grid.size
+        if ratio < 0.5: # north
+            return (1 - ratio / 0.5) * 90
+        else: # south
+            return ((ratio ) / 0.5) * -90 + 90
+
+    @property
+    def zone(self):
+        axial_tilt = abs(self.grid.params.get('axial_tilt'))
+
+        # northern polar zone
+        northern_polar_zone = 90 - axial_tilt
+        southern_polar_zone = -(90 - axial_tilt)
+        northern_tropic_zone = axial_tilt
+        southern_tropic_zone = -axial_tilt
+        northern_temperate = axial_tilt + (axial_tilt / 2)
+        southern_temperate = -(axial_tilt + (axial_tilt / 2))
+
+        if northern_polar_zone < self.latitude <= 90:
+            return Zones.arctic_circle
+        elif northern_temperate < self.latitude <= northern_polar_zone:
+            return Zones.northern_temperate
+        elif northern_tropic_zone < self.latitude <= northern_temperate:
+            return Zones.northern_subtropics
+        elif 0 < self.latitude <= northern_tropic_zone:
+            return Zones.northern_tropics
+        elif southern_tropic_zone < self.latitude <= 0:
+            return Zones.southern_tropics
+        elif southern_temperate < self.latitude <= southern_tropic_zone:
+            return Zones.southern_subtropics
+        elif southern_polar_zone < self.latitude <= southern_temperate:
+            return Zones.southern_temperate
+        elif -90 < self.latitude <= southern_polar_zone:
+            return Zones.antarctic_circle
+
+    @property
+    def base_temperature(self):
         """
         Computes the temperature of this hex. Takes into account the latitude (x-coord) and
         the altitude (higher is colder)
@@ -140,13 +216,14 @@ class Hex:
         # import ipdb; ipdb.set_trace()
         ratio = self.latitude_ratio
         avg_temp = self.grid.params.get('avg_temp')
-        volitility = round(self.grid.params.get('axial_tilt') / 2)
+        volitility = round(abs(self.grid.params.get('axial_tilt')))
         base_temp = self.grid.params.get('base_temp')
         min_temp = max(avg_temp - volitility, base_temp)
         # global avg temperature should be around ratio 0.4 and 0.6
 
         # part1 includes latitude only
         part1 = (abs(min_temp) + (avg_temp + volitility)) * ratio + min_temp
+        # return (part1, part1)
         #print(base_temp, avg_temp, volitility, min_temp, ratio, part1)
         #       43         73          16         57
 
@@ -155,7 +232,15 @@ class Hex:
         if self.is_water:
             factor = 8
         part2 = abs(self.altitude - self.grid.sealevel) / factor
-        return round(part1, 2) - round(part2, 2)
+        return (round(part1, 2) - round(part2, 2), round(part1, 2) - round(part2, 2))
+
+    @property
+    def temperature(self):
+        return (
+            self.base_temperature[0] + self.wind_temp_effect[0],
+            self.base_temperature[1] + self.wind_temp_effect[1],
+        )
+
 
     @property
     def biome(self):
@@ -177,7 +262,7 @@ class Hex:
                     return Biome.barren_dusty
 
         elif map_type is MapType.terran:
-            temp = self.temperature
+            temp = self.temperature[0]
             rain = self.moisture
             if temp <= -10:
                 return Biome.arctic
@@ -187,19 +272,21 @@ class Hex:
                 return Biome.tundra
             elif 5 < rain and 0 < temp <= 7:
                 return Biome.boreal_forest
-            elif 0 <= rain <= 2.5 and 0 < temp <= 20:
+            elif 0 <= rain <= 3.5 and 0 < temp <= 20:
                 return Biome.grasslands
-            elif 2.5 < rain <= 5 and 0 < temp <= 20:
+            elif 3.5 < rain <= 5 and 0 < temp <= 20:
                 return Biome.shrubland
-            elif 0 <= rain <= 5 and 20 < temp:
+            elif 0 <= rain < 4 and 20 < temp:
                 return Biome.desert
+            elif 4 <= rain <= 8 and 20 < temp:
+                return Biome.shrubland
             elif 5 < rain <= 10 and 7 < temp <= 20:
                 return Biome.savanna
             elif 10 < rain <= 20 and 7 < temp <= 20:
                 return Biome.temperate_forest
             elif 20 < rain and 7 < temp <= 20:
                 return Biome.temperate_rainforest
-            elif 5 < rain <= 20 and 20 < temp:
+            elif 8 < rain <= 20 and 20 < temp:
                 return Biome.tropical_forest
             elif 20 < rain and 20 < temp:
                 return Biome.tropical_rainforest
@@ -328,6 +415,22 @@ class Hex:
             else:
                 return self.grid.find_hex(self.x + 1, self.y + 1)
 
+    def neighbor_at(self, direction):
+        """ Given a HexEdge, find the hex on the other side of this edge """
+        if direction is HexEdge.east:
+            return self.hex_east
+        elif direction is HexEdge.south_east:
+            return self.hex_south_east
+        elif direction is HexEdge.south_west:
+            return self.hex_south_west
+        elif direction is HexEdge.west:
+            return self.hex_west
+        elif direction is HexEdge.north_west:
+            return self.hex_north_west
+        elif direction is HexEdge.north_east:
+            return self.hex_north_east
+        raise Exception("No such direction")
+
     @property
     def surrounding(self):
         """
@@ -336,6 +439,22 @@ class Hex:
         """
         return [self.hex_east, self.hex_south_east, self.hex_south_west,
                 self.hex_west, self.hex_north_west, self.hex_north_east]
+
+    @property
+    def neighbors(self):
+        """ Surrounding hexes with HexEdge enums """
+        if self._neighbors is not None:
+            return self._neighbors
+        else:
+            self._neighbors = [
+                (HexEdge.east, self.hex_east),
+                (HexEdge.south_east, self.hex_south_east),
+                (HexEdge.south_west, self.hex_south_west),
+                (HexEdge.west, self.hex_west),
+                (HexEdge.north_west, self.hex_north_west),
+                (HexEdge.north_east, self.hex_north_east),
+            ]
+            return self._neighbors
 
     def bubble(self, distance=1):
         """
@@ -369,7 +488,7 @@ class Hex:
         Determines whether or not this is a land hex. (Altitude over sealevel)
         :return: Boolean
         """
-        return self.altitude >= self.grid.sealevel
+        return bool(self.altitude >= self.grid.sealevel)
 
     @property
     def is_water(self):
@@ -382,6 +501,7 @@ class Hex:
 
         return HexType.ocean
 
+    @property
     def is_inland(self):
         if self.is_land is False:
             return False
@@ -469,6 +589,7 @@ class Hex:
     def __repr__(self):
         return "<HEX: X: {}, Y: {}, Z: {}>".format(self.x, self.y, self.altitude)
 
+
     @property
     def color_terrain(self):
         altitude = self.altitude
@@ -529,15 +650,20 @@ class Hex:
 
     @property
     def color_temperature(self):
-        last_temp = -300
-        for index, value in enumerate(TEMPERATURE_COLORS):
-            temp, color = value
-            if last_temp <= self.temperature <= temp:
-                if self.is_land:
-                    return color[0] - 20, color[1] - 20, color[2] - 20
-                return color
-            last_temp = temp
-        return TEMPERATURE_COLORS[-1][1]
+        def color_temp(loc):
+            last_temp = -300
+            for index, value in enumerate(TEMPERATURE_COLORS):
+                temp, color = value
+                if last_temp <= loc <= temp:
+                    # if self.is_land:
+                    #     return color[0] - 20, color[1] - 20, color[2] - 20
+                    return color
+                last_temp = temp
+            return TEMPERATURE_COLORS[-1][1]
+        return (
+            color_temp(self.temperature[0]),
+            color_temp(self.temperature[1])
+        )
 
     @property
     def color_satellite(self):
@@ -612,4 +738,11 @@ class Hex:
 
             return process(color)
 
-from hexgen.edge import Edge, EdgeDirection
+    @property
+    def color_pressure(self):
+        """ Returns a season dict representing the map color of the pressure at summer and winter"""
+        end_year = round((self.pressure[0] - self.grid.params.get('surface_pressure'))) * 5
+        mid_year = round((self.pressure[1] - self.grid.params.get('surface_pressure'))) * 5
+        return ((100 + end_year, 100, 100), (100 + mid_year, 100, 100))
+
+from hexgen.edge import Edge

@@ -1,5 +1,6 @@
 import math
 from copy import copy
+import numpy as np
 from hexgen.hex import Hex
 
 class GridBoundsException(Exception):
@@ -12,6 +13,8 @@ class Grid:
         self.sealevel = heightmap.sealevel
         self.params = params
         self.average_height = heightmap.average_height
+        self.highest_height = heightmap.highest_height
+        self.lowest_height = heightmap.lowest_height
 
         self.avg_altitude = 0
 
@@ -21,7 +24,7 @@ class Grid:
         if debug:
             print("Making grid")
         self.num_ocean_hexes = 0
-        self.grid = copy(self.heightmap.grid)
+        self.grid = np.ndarray((self.heightmap.size, self.heightmap.size), dtype=np.object)
         for y, row in enumerate(self.grid):
             for x, col in enumerate(row):
                 self.grid[x][y] = Hex(self, x, y, self.heightmap.height_at(x, y))

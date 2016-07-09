@@ -1,7 +1,5 @@
 from enum import Enum
-
 from hexgen.constants import TERRAIN_BARREN, TERRAIN_TERRAN, TERRAIN_OCEANIC
-
 
 class SuperEnum(Enum):
     """ Adds an id property that gets the order of an enum member in the class  """
@@ -51,6 +49,7 @@ class SuperEnum(Enum):
         return [cls[x] for x in list(cls.__members__)]
 
 
+# https://jsfiddle.net/ajfu7em8/1/
 class Biome(SuperEnum):
     __keys__ = ['id', 'code', 'title', 'color', 'base_fertility', 'color_satellite']
 
@@ -59,7 +58,7 @@ class Biome(SuperEnum):
     # terran
     arctic =               (1, 'a', 'Arctic',                 (224, 224, 224), 1,  (132, 152, 159))
     tundra =               (2, 'u', 'Tundra',                 (114, 153, 128), 15, (52, 55, 44))
-    alpine_tundra =        (3, 'p', 'Alpine Tundra',          (97, 130, 106),  10, (103, 91, 61))
+    alpine_tundra =        (3, 'p', 'Alpine Tundra',          (97, 130, 106),  10, (59, 60, 42))
     desert =               (4, 'd', 'Desert',                 (237, 217, 135), 5,  (94, 78, 52))
     shrubland =            (5, 's', 'Shrubland',              (194, 210, 136), 20, (58, 47, 21))
     savanna =              (6, 'S', 'Savanna',                (219, 230, 158), 80, (66, 53, 28))
@@ -91,6 +90,14 @@ class Biome(SuperEnum):
     volcanic_liquid = (19, 'mo', "Lava Fields", (217, 0, 0), 0)
     volcanic_molten_river = (19, 'mo', "Lavaflow", (207, 10, 10), 0, (207, 10, 10))
     volcanic_solid = (20, 'so', "Basaltic Plains", (40, 28, 25), 0)
+
+    # ocean biomes?
+    # estuary
+    # coral reef
+    # deep ocean
+    # inland sea
+    # mediterranean
+    # arctic_ocean
 
 
 class OceanType(SuperEnum):
@@ -138,20 +145,147 @@ class HexResourceType(SuperEnum):
 
 
 class HexEdge(SuperEnum):
-    __keys__ = ['id', 'title']
-    east       = (1, 'East')
-    north_east = (2, 'North East')
-    north_west = (3, 'North West')
-    west       = (4, 'West')
-    south_west = (5, 'South West')
-    south_east = (6, 'South East')
+    __keys__ = ['id', 'title', 'short', 'arrow']
+    east       = (1, 'East', "E", "→")
+    north_east = (2, 'North East', "NE", "↗")
+    north_west = (3, 'North West', "NW", "↖")
+    west       = (4, 'West', "W", "←")
+    south_west = (5, 'South West', "SW", "↙")
+    south_east = (6, 'South East', "SE", "↘")
 
 
 class MapType(SuperEnum):
     __keys__ = ['id', 'title', 'colors']
+
     terran = (1, "Terran", TERRAIN_TERRAN)
     barren = (2, "Barren", TERRAIN_BARREN)
     gas = (3, "Gas", None)
     volcanic = (4, "Volcanic", TERRAIN_BARREN)
     oceanic = (5, "Oceanic", TERRAIN_OCEANIC)
     glacial = (6, "Barren", TERRAIN_BARREN)
+
+class HexType(Enum):
+    land = "Land"       # hex over or at sealevel
+    ocean = "Ocean"     # hex under sealevel
+
+class HexSurface(SuperEnum):
+    """ needed for temperature calculations """
+    __keys__ = ['id', 'specific_heat', 'albedo']
+    water_fresh = (1, 1.00, 0.0) # water without salt
+    water_sea   = (2, 0.94, 0.0) # water with salt
+    granite     = (3, 0.19, 0.0) # continental crust in volcanically active planets
+    basalt      = (4, 0.20, 0.0) # volcanic basaltic rock
+    soil_wet    = (5, 0.35, 0.0) # soil with organic materials
+    soil_dry    = (6, 0.19, 0.0) # desert soil
+    soil_barren = (7, 0.10, 0.0) # barren soil
+    ice_warm    = (8, 0.50, 0.0) # ice warmer than -10 degrees F
+    ice_cold    = (9, 0.40, 0.0) # ice warmer than -100 deg F to -10 deg F
+
+
+
+
+class HexFeature(Enum):
+    """ Each hex can have multiple HexFeatures """
+    lake = "Lake"           # The terminus to a river if it didn't reach sealevel
+    glacier = "Glacier"     # A water hex with a very low surface temperature
+
+
+    # randomly placed
+    volcano = "Volcano"     # Volcano: 1 hex or 2-ring or 3-ring
+    lava_flow = "Lava Flow"
+    crater = "Crater"       # depression of size 2-ring or 3-ring
+
+    # bodies of water
+    sea = "Sea"
+    ocean = "Ocean"
+
+class GeoformType(SuperEnum):
+    """ A grouping of like geographic features """
+    __keys__ = ['id', 'title', 'color']
+
+    # water
+    ocean   = (1, "Ocean", (0, 0, 255))       # > 100 water hexes
+    sea     = (2, "Sea", (50, 50, 200))         # < 100 water hexes
+    strait  = (3, "Strait", (100, 100, 150))      # a water hex with land on opposite sides and water in between them
+    lake    = (4, "Lake", (0, 0, 100))        # a group of up to 3 water hexes
+    bay = (10, "Bay", (50, 50, 150))
+
+    # land
+    isthmus = (5, "Isthmus", (100, 150, 100))            # a land hex with water on opposite sides and land in between them
+    small_island  = (6, "Small Island", (200, 255, 200)) # < 25 land hexes
+    large_island  = (7, "Large Island", (100, 255, 100)) # < 100 land hexes
+    continent = (8, "Continent", (0, 255, 0))        # > 100 land hexes
+    peninsula = (9, "Peninsula", (0, 200, 0))        # group of land separated by an isthmus
+
+
+
+class EdgeDirection(Enum):
+    north = "North"
+    south = "South"
+    north_west = "North West"
+    north_east = "North East"
+    south_west = "South West"
+    south_east = "South East"
+
+
+class HexSide(Enum):
+    east = "East"
+    west = "West"
+    north_west = "North West"
+    north_east = "North East"
+    south_west = "South West"
+    south_east = "South East"
+
+    def branching(self, direction):
+        """ Returns the hex sides that fork from this edge direction """
+        if self is HexSide.east or self is HexSide.west:
+            if direction is EdgeDirection.north:
+                return HexSide.south_west, HexSide.south_east
+            else: # elif direction is EdgeDirection.south:
+                return HexSide.north_west, HexSide.north_east
+        elif self is HexSide.south_east:
+            if direction is EdgeDirection.north_east:
+                return HexSide.west, HexSide.south_west
+            else: # elif direction is EdgeDirection.south_west:
+                return HexSide.east, HexSide.north_east
+        elif self is HexSide.south_west:
+            if direction is EdgeDirection.north_west:
+                return HexSide.east, HexSide.south_east
+            else: # elif direction is EdgeDirection.south_east:
+                return HexSide.west, HexSide.north_west
+        elif self is HexSide.north_west:
+            if direction is EdgeDirection.south_west:
+                return HexSide.east, HexSide.north_east
+            else: # elif direction is EdgeDirection.north_east:
+                return HexSide.west, HexSide.south_west
+        elif self is HexSide.north_east:
+            if direction is EdgeDirection.north_west:
+                return HexSide.east, HexSide.south_east
+            else: # elif direction is EdgeDirection.south_east:
+                return HexSide.north_west, HexSide.west
+        raise Exception("Branching invalid, Side: {}, Direction: {}".format(self, direction))
+
+
+class Zones(SuperEnum):
+    __keys__ = ['id', 'title', 'color', 'map_key', 'incr']
+
+    arctic_circle       = (1, 'Artic Circle', (150, 150, 250),        'N', 0.60)
+    northern_temperate   = (2, 'Northern Temperate', (150, 250, 150), 'A', 0.90)
+    northern_subtropics = (3, 'Nothern Subtropics', (150, 250, 200),  'B', 0.60)
+    northern_tropics    = (4, 'Northern Tropics', (230, 150, 150),    'C', 0.30)
+    southern_tropics    = (5, 'Southern Tropics', (250, 180, 150),    'D', 0.30)
+    southern_subtropics = (6, 'Southern Subtropics', (150, 250, 200), 'E', 0.60)
+    southern_temperate  = (7, 'Southern Temperate', (150, 250, 150),  'F', 0.90)
+    antarctic_circle    = (8, "Antarctic Circle", (150, 150, 250),    'S', 0.60)
+
+
+class Hemisphere(Enum):
+    northern = "Northern"
+    southern = "Southern"
+
+
+class Season(Enum):
+    winter = "Winter"
+    spring = "Spring"
+    summer = "Summer"
+    autumn = "Autumn"
