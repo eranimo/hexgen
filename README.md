@@ -9,6 +9,23 @@ It's a world map generator written in Python. It generates a random world map re
 I'm using this as a board for a browser-based game I am working on. It can be used for anything from DnD campaigns to open-source games or even just for fun.
 
 
+## Requirements
+* [Python 3.5](https://www.python.org/downloads/release/python-350/)
+* [Pillow 2.8.2](http://pillow.readthedocs.io/en/3.2.x/installation.html)
+
+It's recommended to use [virtualenv](https://pypi.python.org/pypi/virtualenv) and [virtualenvwrapper](http://virtualenvwrapper.readthedocs.io/en/latest/install.html) to keep the dependencies of this project separate from those that are installed globally on your system. With virtualenvwrapper, you can install this project with the following:
+
+    mkvirtualenv hexgen -p python3
+    pip install -r requirements.txt
+
+Tip: Installing Pillow through pip requires the python header files. You can install those on Debian/Ubuntu with `sudo apt-get install python3-dev`.
+
+To test your installation, run the unit tests:
+
+    ./test
+
+If everything is working, it should report back "OK".
+
 ## How to use
 
 ### Export types
