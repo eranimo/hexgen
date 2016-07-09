@@ -9,7 +9,10 @@ It's a world map generator written in Python. It generates a random world map re
 I'm using this as a board for a browser-based game I am working on. It can be used for anything from DnD campaigns to open-source games or even just for fun.
 
 
-## Requirements
+## Installation
+
+This project requires the following:
+
 * [Python 3.5](https://www.python.org/downloads/release/python-350/)
 * [Pillow 2.8.2](http://pillow.readthedocs.io/en/3.2.x/installation.html)
 
