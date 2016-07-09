@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from hexgen import generate
 from hexgen.enums import MapType
 
@@ -15,4 +16,4 @@ options = {
 }
 
 gen = generate(options, image=True)
-# gen.export('bin/export3.json')
+gen.export('bin/export.json')

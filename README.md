@@ -20,6 +20,7 @@ It's recommended to use [virtualenv](https://pypi.python.org/pypi/virtualenv) an
 
     mkvirtualenv hexgen -p python3
     pip install -r requirements.txt
+    python setup.py develop
 
 Tip: Installing Pillow through pip requires the python header files. You can install those on Debian/Ubuntu with `sudo apt-get install python3-dev`.
 
@@ -30,6 +31,12 @@ To test your installation, run the unit tests:
 If everything is working, it should report back "OK".
 
 ## How to use
+
+### Quick Start
+
+To generate an example map with options already pre-configured, just run:
+
+    python bin/example.py
 
 ### Export types
 The primary export of Hexgen is a data structure that represents the world map. It can also export a bunch of png files that show various features on the map.
