@@ -1,6 +1,6 @@
 import uuid
 import copy
-import simplejson as json
+import json
 import math
 import random
 import sys

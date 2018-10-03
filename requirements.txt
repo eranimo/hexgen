@@ -1,1 +1,2 @@
-Pillow==2.8.2
+Pillow==5.2.0
+NumPy==1.15.1

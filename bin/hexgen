@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+
+import argparse, sys
+
+sys.path.append('.')
+
+from hexgen import generate
+from hexgen.enums import MapType
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--map-type")
+parser.add_argument("--surface-pressure", type=float)
+parser.add_argument("--axial-tilt", type=int)
+parser.add_argument("--size", type=int)
+parser.add_argument("--base-temp", type=float)
+parser.add_argument("--avg-temp", type=int)
+parser.add_argument("--sea-percent", type=int)
+parser.add_argument("--hydrosphere", action="store_true")
+parser.add_argument("--image", action="store_true")
+parser.add_argument("--num-rivers", type=int)
+parser.add_argument("--num-territories", type=int)
+parser.add_argument("--debug", action="store_true")
+args = parser.parse_args()
+
+options = {
+    "map_type": MapType.terran,
+    "surface_pressure": args.surface_pressure or 1013.25,
+    "axial_tilt": args.axial_tilt or 23,
+    "size": args.size or 100,
+    "base_temp": args.base_temp or -19.50,
+    "avg_temp": args.avg_temp or 12,
+    "sea_percent": args.sea_percent or 60,
+    "hydrosphere": args.hydrosphere or True,
+    "num_rivers": args.num_rivers or 125,
+    "num_territories": args.num_territories or 0
+}
+
+gen = generate(options, debug=args.debug, image=args.image)
+gen.export('output/world-data.json')
