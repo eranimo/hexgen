@@ -164,11 +164,11 @@ class Timer:
         if self.debug:
             print(self.text.ljust(50), end="")
             print('starting...')
-        self.start = time.clock()
+        self.start = time.perf_counter()
         return self
 
     def __exit__(self, *args):
-        self.end = time.clock()
+        self.end = time.perf_counter()
         self.interval = self.end - self.start
         if self.debug:
             print(self.text.ljust(50), end="")
